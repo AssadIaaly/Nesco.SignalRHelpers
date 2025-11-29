@@ -35,4 +35,29 @@ public class SignalRServerOptions
     /// Default: true
     /// </summary>
     public bool AutoDeleteTempFiles { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether to use the default file upload API controller.
+    /// When enabled, a FileUploadController will be registered at the specified route.
+    /// Default: false
+    /// </summary>
+    public bool UseDefaultFileUploadApi { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the route prefix for the file upload API.
+    /// Default: "api/FileUpload"
+    /// </summary>
+    public string FileUploadApiRoute { get; set; } = "api/FileUpload";
+
+    /// <summary>
+    /// Gets or sets the maximum file size in bytes for uploads.
+    /// Default: 100MB (104857600 bytes)
+    /// </summary>
+    public long MaxFileSize { get; set; } = 104857600;
+
+    /// <summary>
+    /// Gets or sets whether the file upload API requires authorization.
+    /// Default: false (AllowAnonymous)
+    /// </summary>
+    public bool RequireAuthorization { get; set; } = false;
 }

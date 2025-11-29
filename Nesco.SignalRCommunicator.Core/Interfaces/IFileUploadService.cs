@@ -10,7 +10,7 @@ public interface IFileUploadService
     /// Uploads file data as a byte array to the specified folder.
     /// </summary>
     /// <param name="fileData">The file content as a byte array.</param>
-    /// <param name="fileName">The name of the file to create.</param>
+    /// <param name="fileName">The name of the file to create (will be sanitized by the server).</param>
     /// <param name="folder">The folder where the file should be uploaded. Defaults to "signalr-temp".</param>
     /// <returns>The relative or absolute path to the uploaded file.</returns>
     /// <exception cref="Exception">Thrown when the upload fails.</exception>
@@ -20,16 +20,9 @@ public interface IFileUploadService
     /// Uploads file data from a stream to the specified folder.
     /// </summary>
     /// <param name="stream">The stream containing the file data.</param>
-    /// <param name="fileName">The name of the file to create.</param>
+    /// <param name="fileName">The name of the file to create (will be sanitized by the server).</param>
     /// <param name="folder">The folder where the file should be uploaded. Defaults to "signalr-temp".</param>
     /// <returns>The relative or absolute path to the uploaded file.</returns>
     /// <exception cref="Exception">Thrown when the upload fails.</exception>
     Task<string> UploadStreamAsync(Stream stream, string fileName, string folder = "signalr-temp");
-
-    /// <summary>
-    /// Deletes a previously uploaded file.
-    /// </summary>
-    /// <param name="filePath">The path to the file to delete.</param>
-    /// <returns>True if the file was successfully deleted, false otherwise.</returns>
-    Task<bool> DeleteFileAsync(string filePath);
 }

@@ -84,6 +84,10 @@ builder.Services.AddSignalRCommunicatorClientWithExecutor<MyMethodExecutor>(opti
     options.ReconnectDelaySeconds = 30;
     options.MaxRetryAttempts = 3;
     options.RetryDelaySeconds = 5;
+
+    // Optional: Configure file upload settings
+    // options.FileUploadBaseUrl = "https://upload.myserver.com"; // Use different server for uploads
+    // options.FileUploadRoute = "api/upload"; // Custom upload route
 });
 
 var app = builder.Build();
@@ -226,6 +230,8 @@ public class MyService
 | `MaxRetryAttempts` | int | 3 | Maximum retry attempts for initial connection |
 | `RetryDelaySeconds` | int | 5 | Delay between retry attempts |
 | `TempFolder` | string | "signalr-temp" | Folder name for temporary file uploads |
+| `FileUploadBaseUrl` | string? | null | Base URL for file uploads (defaults to ServerUrl) |
+| `FileUploadRoute` | string | "api/FileUpload" | API route for file uploads |
 
 ## Features
 

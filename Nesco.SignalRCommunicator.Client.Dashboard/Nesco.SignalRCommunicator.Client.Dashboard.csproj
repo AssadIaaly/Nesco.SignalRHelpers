@@ -15,8 +15,14 @@
         <Description>A ready-to-use Blazor WebAssembly dashboard component for SignalR client status, connection monitoring, and method invocation logging.</Description>
         <PackageTags>signalr;blazor;webassembly;dashboard;client;realtime</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="" />
+    </ItemGroup>
 
     <ItemGroup>
         <!-- Package References -->

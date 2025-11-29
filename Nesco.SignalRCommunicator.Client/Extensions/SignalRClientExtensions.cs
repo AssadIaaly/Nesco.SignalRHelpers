@@ -66,7 +66,7 @@ public static class SignalRClientExtensions
         {
             services.AddHttpClient<IFileUploadService, DefaultFileUploadService>(client =>
             {
-                client.BaseAddress = new Uri(options.ServerUrl);
+                client.BaseAddress = new Uri(options.EffectiveFileUploadBaseUrl);
                 client.DefaultRequestHeaders.Add("Accept", "application/json");
             });
         }

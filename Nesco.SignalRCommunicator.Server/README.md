@@ -274,6 +274,99 @@ public class CustomCommunicatorHub : SignalRCommunicatorHub
 | `SemaphoreTimeoutSeconds` | int | 5 | Maximum time to wait for a semaphore slot |
 | `TempFolder` | string | "signalr-temp" | Folder name for temporary files |
 | `AutoDeleteTempFiles` | bool | true | Automatically delete temp files after reading |
+| `UseDefaultFileUploadApi` | bool | false | Enable the built-in file upload API controller |
+| `FileUploadApiRoute` | string | "api/FileUpload" | Route prefix for the file upload API |
+| `MaxFileSize` | long | 104857600 (100MB) | Maximum file size for uploads |
+| `RequireAuthorization` | bool | false | Whether file upload API requires authorization |
+
+## Default File Upload API
+
+The server package includes a built-in file upload API controller that can be used by clients to upload large data responses. This is useful when client responses exceed the SignalR message size limit.
+
+### Enabling the File Upload API
+
+```csharp
+// In Program.cs
+
+// 1. Add controllers with the file upload controller
+builder.Services.AddControllers()
+    .AddSignalRCommunicatorFileUploadController();
+
+// 2. Configure SignalR Communicator Server with file upload options
+builder.Services.AddSignalRCommunicatorServer(options =>
+{
+    options.UseDefaultFileUploadApi = true;
+    options.MaxFileSize = 50 * 1024 * 1024; // 50MB
+    options.TempFolder = "signalr-temp";
+});
+
+var app = builder.Build();
+
+// 3. Map controllers (required for the file upload API)
+app.MapControllers();
+
+// 4. Map the SignalR hub
+app.MapSignalRCommunicatorHub("/hubs/communicator");
+
+app.Run();
+```
+
+### File Upload API Endpoints
+
+The controller provides the following endpoints:
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `api/FileUpload/{folder}` | Upload a file to a folder with auto-generated filename |
+| POST | `api/FileUpload/{folder}/{filename}` | Upload a file with a specific filename |
+| DELETE | `api/FileUpload?path={path}` | Delete a file at the specified path |
+| POST | `api/FileUpload/Delete` | Delete a file (POST method for compatibility) |
+
+### Client Usage
+
+The client library (`Nesco.SignalRCommunicator.Client`) uses the `DefaultFileUploadService` to automatically upload large responses. The client sends the file to the server's file upload API and returns the file path in the SignalR response.
+
+```csharp
+// Client-side (automatic - handled by the library)
+// When a response exceeds the message size limit, the client:
+// 1. Uploads the data to api/FileUpload/{tempFolder}
+// 2. Returns the file path in the SignalR response
+// 3. Server reads the file and optionally deletes it
+
+// Server-side receives the file path and reads the content
+var result = await _communicator.InvokeMethodAsync<LargeDataResponse>(
+    "GetLargeData",
+    new { Id = 123 }
+);
+// The file is automatically read and deserialized
+```
+
+### Custom File Upload Controller
+
+If you need custom behavior (authentication, validation, cloud storage), you can implement your own controller:
+
+```csharp
+[Authorize] // Add authorization
+[Route("api/[controller]")]
+[ApiController]
+public class CustomFileUploadController : ControllerBase
+{
+    private readonly IAzureBlobService _blobService;
+
+    [HttpPost("{folder}")]
+    public async Task<ActionResult<string>> Post(string folder)
+    {
+        var file = HttpContext.Request.Form.Files.FirstOrDefault();
+        if (file == null) return BadRequest("No file");
+
+        // Upload to Azure Blob Storage instead of local disk
+        var blobUrl = await _blobService.UploadAsync(file, folder);
+        return Ok(blobUrl);
+    }
+}
+```
+
+Then configure the client to use your custom endpoint by implementing `IFileUploadService`.
 
 ## Connection Management
 

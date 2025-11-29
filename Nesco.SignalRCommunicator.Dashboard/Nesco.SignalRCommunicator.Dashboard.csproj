@@ -16,7 +16,8 @@
         <Description>A ready-to-use Blazor dashboard component for monitoring and testing SignalR connections with both User Management and Communicator features. Simply add the package, register services, and access the /signalr-dashboard page.</Description>
         <PackageTags>signalr;blazor;dashboard;realtime;websockets;monitoring</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <RepositoryUrl>https://github.com/yourusername/IntranetBlazor</RepositoryUrl>
+        <RepositoryUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 

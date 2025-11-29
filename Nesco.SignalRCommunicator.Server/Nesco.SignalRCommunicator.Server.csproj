@@ -8,14 +8,16 @@
 
         <!-- NuGet Package Metadata -->
         <PackageId>Nesco.SignalRCommunicator.Server</PackageId>
-        <Version>1.0.0</Version>
+        <Version>1.0.3</Version>
         <Authors>Nesco</Authors>
         <Company>Nesco</Company>
         <Description>Server library for SignalR-based communication. Invoke methods on connected clients and receive responses with automatic large data handling.</Description>
         <PackageTags>SignalR;RPC;Server;Communication;Real-time</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <RepositoryUrl>https://github.com/yourusername/Nesco.SignalRCommunicator</RepositoryUrl>
+        <RepositoryUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <ItemGroup>

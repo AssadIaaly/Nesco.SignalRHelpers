@@ -61,4 +61,29 @@ public class SignalRClientOptions
     /// Default: "signalr-temp"
     /// </summary>
     public string TempFolder { get; set; } = "signalr-temp";
+
+    /// <summary>
+    /// Gets or sets the base URL for file uploads.
+    /// If not specified, defaults to <see cref="ServerUrl"/>.
+    /// Use this when the file upload API is hosted on a different server or port.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// options.ServerUrl = "http://localhost:5123";
+    /// options.FileUploadBaseUrl = "http://localhost:5124"; // Different server for uploads
+    /// </code>
+    /// </example>
+    public string? FileUploadBaseUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the API route for file uploads.
+    /// Default: "api/FileUpload"
+    /// </summary>
+    public string FileUploadRoute { get; set; } = "api/FileUpload";
+
+    /// <summary>
+    /// Gets the effective base URL for file uploads.
+    /// Returns <see cref="FileUploadBaseUrl"/> if specified, otherwise <see cref="ServerUrl"/>.
+    /// </summary>
+    public string EffectiveFileUploadBaseUrl => FileUploadBaseUrl ?? ServerUrl;
 }

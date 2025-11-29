@@ -383,7 +383,7 @@ public class SignalRCommunicatorService<THub> : ISignalRCommunicatorService
             var jsonContent = await _fileReaderService.ReadFileAsync(filePath);
 
             // Delete temporary files after reading if configured
-            if (_options.AutoDeleteTempFiles && filePath.Contains(_options.TempFolder))
+            if (_options.AutoDeleteTempFiles)
             {
                 try
                 {

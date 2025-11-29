@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Nesco.SignalRCommunicator.Core.Interfaces;
 using Nesco.SignalRCommunicator.Client.Dashboard.Services;
+using Nesco.SignalRCommunicator.Client.Utilities;
 
 namespace BlazorWebassemblyApp.Services;
 
@@ -41,10 +42,10 @@ public class ClientMethodsService : IMethodExecutor
             {
                 "Ping" => Ping(), // Default method for connectivity check
                 "GetClientInfo" => GetClientInfo(),
-                "Calculate" => Calculate(ParseParameter<CalculationRequest>(parameter)),
+                "Calculate" => Calculate(ParameterParser.Parse<CalculationRequest>(parameter)),
                 "GetStatus" => GetStatus(),
-                "ProcessData" => await ProcessDataAsync(ParseParameter<ProcessRequest>(parameter)),
-                "SimulateDelay" => await SimulateDelayAsync(ParseParameter<DelayRequest>(parameter)),
+                "ProcessData" => await ProcessDataAsync(ParameterParser.Parse<ProcessRequest>(parameter)),
+                "SimulateDelay" => await SimulateDelayAsync(ParameterParser.Parse<DelayRequest>(parameter)),
                 _ => throw new NotSupportedException($"Method '{methodName}' is not supported")
             };
 
@@ -73,41 +74,6 @@ public class ClientMethodsService : IMethodExecutor
             _dashboardLogger.Log(methodName, paramJson, null, ex.Message, false, duration);
 
             throw;
-        }
-    }
-
-    /// <summary>
-    /// Helper method to parse and deserialize parameters
-    /// </summary>
-    private T ParseParameter<T>(object? parameter) where T : new()
-    {
-        if (parameter == null)
-        {
-            return new T();
-        }
-
-        try
-        {
-            // If parameter is already a JsonElement, deserialize it
-            if (parameter is JsonElement jsonElement)
-            {
-                return JsonSerializer.Deserialize<T>(jsonElement.GetRawText()) ?? new T();
-            }
-
-            // If it's already the correct type, return it
-            if (parameter is T typedParam)
-            {
-                return typedParam;
-            }
-
-            // Try to serialize and deserialize to convert
-            var json = JsonSerializer.Serialize(parameter);
-            return JsonSerializer.Deserialize<T>(json) ?? new T();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to parse parameter for type {Type}", typeof(T).Name);
-            throw new ArgumentException($"Failed to parse parameter to type {typeof(T).Name}", ex);
         }
     }
 

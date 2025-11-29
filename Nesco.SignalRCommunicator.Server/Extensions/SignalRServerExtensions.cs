@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Nesco.SignalRCommunicator.Core.Interfaces;
 using Nesco.SignalRCommunicator.Core.Options;
 using Nesco.SignalRCommunicator.Core.Services;
+using Nesco.SignalRCommunicator.Server.Controllers;
 using Nesco.SignalRCommunicator.Server.Hubs;
 using Nesco.SignalRCommunicator.Server.Services;
 
@@ -243,5 +246,46 @@ public static class SignalRServerExtensions
         string pattern = "/hubs/communicator")
     {
         return endpoints.MapHub<SignalRCommunicatorHub>(pattern);
+    }
+
+    /// <summary>
+    /// Adds the SignalR Communicator file upload controller to the MVC application parts.
+    /// Call this after AddControllers() or AddControllersWithViews() if you want to use the default file upload API.
+    /// </summary>
+    /// <param name="mvcBuilder">The MVC builder.</param>
+    /// <returns>The MVC builder for chaining.</returns>
+    /// <remarks>
+    /// This method registers the FileUploadController which provides endpoints for:
+    /// <list type="bullet">
+    /// <item><description>POST api/FileUpload/{folder} - Upload a file to a folder</description></item>
+    /// <item><description>POST api/FileUpload/{folder}/{filename} - Upload a file with a specific name</description></item>
+    /// <item><description>DELETE api/FileUpload?path={path} - Delete a file</description></item>
+    /// <item><description>POST api/FileUpload/Delete - Delete a file (POST method for compatibility)</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // In Program.cs
+    /// services.AddControllers()
+    ///     .AddSignalRCommunicatorFileUploadController();
+    ///
+    /// // Configure options
+    /// services.AddSignalRCommunicatorServer(options =>
+    /// {
+    ///     options.UseDefaultFileUploadApi = true;
+    ///     options.MaxFileSize = 50 * 1024 * 1024; // 50MB
+    /// });
+    ///
+    /// // In app configuration
+    /// app.MapControllers();
+    /// </code>
+    /// </example>
+    public static IMvcBuilder AddSignalRCommunicatorFileUploadController(this IMvcBuilder mvcBuilder)
+    {
+        // Add the assembly containing FileUploadController to the application parts
+        var assembly = typeof(FileUploadController).Assembly;
+        mvcBuilder.AddApplicationPart(assembly);
+
+        return mvcBuilder;
     }
 }

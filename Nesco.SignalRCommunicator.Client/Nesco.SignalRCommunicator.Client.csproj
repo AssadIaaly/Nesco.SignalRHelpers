@@ -7,15 +7,17 @@
 
         <!-- NuGet Package Metadata -->
         <PackageId>Nesco.SignalRCommunicator.Client</PackageId>
-        <Version>1.0.0</Version>
+        <Version>1.0.4</Version>
         <Authors>Nesco</Authors>
         <Company>Nesco</Company>
         <Description>Client library for SignalR-based communication. Connect to a SignalR server, receive method invocations, and return responses with automatic large data handling.</Description>
         <PackageTags>SignalR;RPC;Client;Communication;Real-time</PackageTags>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <RepositoryUrl>https://github.com/yourusername/Nesco.SignalRCommunicator</RepositoryUrl>
+        <RepositoryUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <TargetFramework>net10.0</TargetFramework>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <ItemGroup>
