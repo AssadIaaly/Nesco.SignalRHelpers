@@ -7,24 +7,18 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Version>1.0.0</Version>
         <Authors>Nesco</Authors>
-        <Description>Client-side SignalR User Management for Blazor WebAssembly</Description>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <Description>Client-side SignalR User Management for Blazor</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <RepositoryUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</RepositoryUrl>
         <PackageProjectUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</PackageProjectUrl>
     </PropertyGroup>
-
-    <ItemGroup>
-        <None Include="README.md" Pack="true" PackagePath="" />
-    </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Nesco.SignalRUserManagement.Core\Nesco.SignalRUserManagement.Core.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
-      <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
     </ItemGroup>
 
 </Project>

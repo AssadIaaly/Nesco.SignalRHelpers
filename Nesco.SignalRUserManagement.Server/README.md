@@ -1,6 +1,17 @@
 # Nesco.SignalRUserManagement.Server
 
-Server-side package for managing SignalR user connections with database persistence.
+Server-side library for managing SignalR user connections with database persistence and bi-directional method invocation. Track connected users, invoke methods on clients, and receive streaming responses.
+
+## Features
+
+- Automatic connection tracking with database persistence
+- Bi-directional method invocation (server-to-client with responses)
+- Streaming multi-response support for invoking methods on multiple clients
+- Large response handling via file upload
+- Built-in dashboard component for testing and monitoring
+- Ping/pong mechanism for stale connection validation
+- Support for multiple connections per user
+- Works with both cookie and JWT authentication
 
 ## Installation
 
@@ -8,17 +19,19 @@ Server-side package for managing SignalR user connections with database persiste
 dotnet add package Nesco.SignalRUserManagement.Server
 ```
 
-## Database Setup
+## Quick Start
 
-### 1. Add the models to your DbContext
+### 1. Add UserConnection to your DbContext
+
+Your DbContext must implement `IUserConnectionDbContext`:
 
 ```csharp
+using Microsoft.EntityFrameworkCore;
 using Nesco.SignalRUserManagement.Server.Models;
 
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext : DbContext, IUserConnectionDbContext
 {
-    public DbSet<ConnectedUser> ConnectedUsers { get; set; }
-    public DbSet<Connection> Connections { get; set; }
+    public DbSet<UserConnection> UserConnections { get; set; } = null!;
 
     // ... your other DbSets
 }
@@ -27,154 +40,426 @@ public class ApplicationDbContext : DbContext
 ### 2. Create and apply migration
 
 ```bash
-dotnet ef migrations add AddUserManagement
+dotnet ef migrations add AddUserConnections
 dotnet ef database update
 ```
 
-## Usage
-
-### 1. Create your hub by inheriting from UserManagementHub
-
-```csharp
-using Nesco.SignalRUserManagement.Server.Hubs;
-
-public class MessagingHub : UserManagementHub<ApplicationDbContext>
-{
-    public MessagingHub(
-        ApplicationDbContext context,
-        ILogger<MessagingHub> logger,
-        IOptions<UserManagementOptions> options)
-        : base(context, logger, options)
-    {
-    }
-
-    // Add your custom hub methods here
-}
-```
-
-### 2. Configure services in Program.cs
+### 3. Configure services in Program.cs
 
 ```csharp
 using Nesco.SignalRUserManagement.Server.Extensions;
 
-// Add user management services
-builder.Services.AddUserManagement<MessagingHub, ApplicationDbContext>(options =>
+var builder = WebApplication.CreateBuilder(args);
+
+// Add SignalR User Management with method invocation support
+builder.Services.AddSignalRUserManagement<ApplicationDbContext>(options =>
 {
-    options.BroadcastConnectionEvents = true;
-    options.ConnectionEventMethod = "UserConnectionEvent";
-    options.AutoPurgeOfflineConnections = true;
-    options.KeepAliveIntervalSeconds = 15;
-    options.ClientTimeoutSeconds = 30;
-    options.TrackUserAgent = true;
+    options.EnableCommunicator = true; // Enable server-to-client method invocation
+    options.AutoDeleteTempFiles = true; // Auto-cleanup uploaded response files
 });
 
-// Map the hub
-app.MapUserManagementHub<MessagingHub>("/hubs/messaging");
+var app = builder.Build();
+
+// Map the hub and file upload endpoint
+app.MapSignalRUserManagement<ApplicationDbContext>();
+
+app.Run();
 ```
 
-### 3. Use IUserConnectionService to send messages
+---
+
+## Server Configuration
+
+### Full Configuration Example
+
+```csharp
+builder.Services.AddSignalRUserManagement<ApplicationDbContext>(options =>
+{
+    // Enable method invocation on clients
+    options.EnableCommunicator = true;
+
+    // Large response handling
+    options.MaxDirectDataSizeBytes = 32 * 1024; // 32KB threshold
+    options.AutoDeleteTempFiles = true; // Delete files after reading
+    options.TempFolder = "signalr-temp"; // Temp folder for uploads
+
+    // Timeouts
+    options.RequestTimeoutSeconds = 30; // Method invocation timeout
+    options.MaxConcurrentRequests = 100; // Max concurrent invocations
+});
+```
+
+### Mapping Endpoints
+
+```csharp
+// Maps both the hub and file upload endpoint
+app.MapSignalRUserManagement<ApplicationDbContext>();
+
+// Or map separately with custom paths:
+app.MapUserManagementHub<ApplicationDbContext>("/hubs/usermanagement");
+app.MapSignalRFileUpload(); // Maps to /api/signalr/upload
+```
+
+---
+
+## Using the Dashboard Component
+
+The library includes a built-in Blazor dashboard component for testing and monitoring.
+
+### 1. Add the component to your app
+
+```razor
+@page "/signalr-dashboard"
+@using Nesco.SignalRUserManagement.Server.Components
+
+<SignalRDashboard />
+```
+
+### 2. Features
+
+The dashboard provides:
+- **Connected Users**: View all connected users and their connections
+- **Method Invocation**: Test invoking methods on clients
+- **Streaming Results**: See responses as they arrive from multiple clients
+- **Ping All**: Quick connectivity check for all users
+
+---
+
+## Invoking Methods on Clients
+
+### Using ISignalRUserManagementService
 
 ```csharp
 public class NotificationService
 {
-    private readonly IUserConnectionService _userConnection;
+    private readonly ISignalRUserManagementService _signalR;
 
-    public NotificationService(IUserConnectionService userConnection)
+    public NotificationService(ISignalRUserManagementService signalR)
     {
-        _userConnection = userConnection;
+        _signalR = signalR;
     }
 
-    // Send to all connected clients
-    public async Task NotifyAll(string message)
+    // Invoke on all connected users
+    public async Task<SignalRResponse> PingAll()
     {
-        await _userConnection.SendToAllAsync("ReceiveNotification", message);
+        return await _signalR.InvokeOnAllConnectedAsync("Ping", null);
     }
 
-    // Send to specific user (all their connections)
-    public async Task NotifyUser(string userId, string message)
+    // Invoke on specific user
+    public async Task<SignalRResponse> GetUserInfo(string userId)
     {
-        await _userConnection.SendToUserAsync(userId, "ReceiveNotification", message);
+        return await _signalR.InvokeOnUserAsync(userId, "GetClientInfo", null);
     }
 
-    // Send to specific connection
-    public async Task NotifyConnection(string connectionId, string message)
+    // Invoke on specific connection
+    public async Task<SignalRResponse> SendAlert(string connectionId, object alert)
     {
-        await _userConnection.SendToConnectionAsync(connectionId, "ReceiveNotification", message);
+        return await _signalR.InvokeOnConnectionAsync(connectionId, "Alert", alert);
     }
 
-    // Send to multiple users
-    public async Task NotifyUsers(List<string> userIds, string message)
+    // Check if user is connected
+    public bool IsOnline(string userId)
     {
-        await _userConnection.SendToUsersAsync(userIds, "ReceiveNotification", message);
-    }
-
-    // Check connection status
-    public bool IsUserOnline(string userId)
-    {
-        return _userConnection.IsUserConnected(userId);
+        return _signalR.IsUserConnected(userId);
     }
 }
 ```
 
-### 4. Query connected users
+### Streaming Responses from Multiple Clients
+
+When invoking methods on multiple clients, use streaming to receive responses as they arrive:
 
 ```csharp
-public class AdminController : ControllerBase
+public async Task StreamPingResults()
 {
-    private readonly ApplicationDbContext _context;
-
-    [HttpGet("GetConnectedUsers")]
-    public async Task<ActionResult<IEnumerable<ConnectedUserDTO>>> GetConnectedUsers()
+    await foreach (var response in _signalR.InvokeOnAllConnectedStreamingAsync("Ping", null))
     {
-        var users = await _context.ConnectedUsers
-            .Include(u => u.Connections)
+        Console.WriteLine($"Response from {response.ConnectionId}: {response.Success}");
+
+        if (response.Success && response.Response?.JsonData != null)
+        {
+            // Process each response as it arrives
+            ProcessResponse(response.Response.JsonData);
+        }
+    }
+}
+```
+
+### Available Streaming Methods
+
+```csharp
+// Stream responses from all connected users
+IAsyncEnumerable<ClientResponse> InvokeOnAllConnectedStreamingAsync(
+    string methodName, object? parameter, CancellationToken ct = default);
+
+// Stream responses from a specific user (all their connections)
+IAsyncEnumerable<ClientResponse> InvokeOnUserStreamingAsync(
+    string userId, string methodName, object? parameter, CancellationToken ct = default);
+
+// Stream responses from multiple users
+IAsyncEnumerable<ClientResponse> InvokeOnUsersStreamingAsync(
+    IEnumerable<string> userIds, string methodName, object? parameter, CancellationToken ct = default);
+
+// Stream responses from specific connections
+IAsyncEnumerable<ClientResponse> InvokeOnConnectionsStreamingAsync(
+    IEnumerable<string> connectionIds, string methodName, object? parameter, CancellationToken ct = default);
+```
+
+---
+
+## Response Types
+
+### SignalRResponse
+
+```csharp
+public class SignalRResponse
+{
+    public SignalRResponseType ResponseType { get; set; }
+    public object? JsonData { get; set; }      // For direct JSON responses
+    public string? FilePath { get; set; }       // For file-based responses
+    public string? ErrorMessage { get; set; }   // For errors
+}
+
+public enum SignalRResponseType
+{
+    Null,       // No data
+    JsonObject, // Direct JSON data
+    FilePath,   // Response stored in file (large data)
+    Error       // Error occurred
+}
+```
+
+### ClientResponse (for streaming)
+
+```csharp
+public class ClientResponse
+{
+    public string ConnectionId { get; set; }
+    public string? UserId { get; set; }
+    public SignalRResponse? Response { get; set; }
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    public DateTime ReceivedAt { get; set; }
+}
+```
+
+---
+
+## JWT Authentication Setup
+
+For standalone clients (WebAssembly, MAUI) connecting cross-origin:
+
+### 1. Add CORS Policy
+
+```csharp
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:5001") // Client app URL
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
+app.UseCors();
+```
+
+### 2. Configure JWT Bearer Authentication
+
+```csharp
+builder.Services.AddAuthentication()
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = "YourIssuer",
+            ValidAudience = "YourAudience",
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes("YourSecretKey"))
+        };
+
+        // Allow JWT token from query string for SignalR
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+    });
+```
+
+### 3. Add Custom UserIdProvider
+
+```csharp
+using Microsoft.AspNetCore.SignalR;
+using System.Security.Claims;
+
+public class CustomUserIdProvider : IUserIdProvider
+{
+    public string? GetUserId(HubConnectionContext connection)
+    {
+        return connection.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+               ?? connection.User?.FindFirst("sub")?.Value;
+    }
+}
+
+// Register in Program.cs
+builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
+```
+
+---
+
+## User Name Resolution
+
+By default, the API only returns user IDs. To include user names, implement `IUserNameResolver`:
+
+```csharp
+public class IdentityUserNameResolver : IUserNameResolver
+{
+    private readonly UserManager<ApplicationUser> _userManager;
+
+    public IdentityUserNameResolver(UserManager<ApplicationUser> userManager)
+    {
+        _userManager = userManager;
+    }
+
+    public async Task<Dictionary<string, string>> ResolveUserNamesAsync(IEnumerable<string> userIds)
+    {
+        var users = await _userManager.Users
+            .Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.UserName, u.Email })
             .ToListAsync();
 
-        var usersDTO = users.Select(u => new ConnectedUserDTO
-        {
-            UserId = u.UserId,
-            LastConnect = u.LastConnect,
-            LastDisconnect = u.LastDisconnect,
-            Connections = u.Connections.Select(c => new ConnectionDTO
-            {
-                ConnectionId = c.ConnectionId,
-                UserAgent = c.UserAgent,
-                Connected = c.Connected,
-                ConnectedAt = c.ConnectedAt
-            }).ToList()
-        }).ToList();
-
-        return Ok(usersDTO);
+        return users.ToDictionary(
+            u => u.Id,
+            u => u.UserName ?? u.Email ?? u.Id);
     }
 }
+
+// Register
+builder.Services.AddScoped<IUserNameResolver, IdentityUserNameResolver>();
 ```
 
-## Configuration Options
+---
 
-- **BroadcastConnectionEvents**: Whether to broadcast connection/disconnection events to all clients (default: true)
-- **ConnectionEventMethod**: Method name for connection event broadcasts (default: "UserConnectionEvent")
-- **AutoPurgeOfflineConnections**: Whether to automatically clean up offline connections (default: true)
-- **KeepAliveIntervalSeconds**: Keep-alive interval for SignalR connections (default: 15)
-- **ClientTimeoutSeconds**: Client timeout in seconds (default: 30)
-- **TrackUserAgent**: Whether to store user agent information (default: true)
+## Built-in REST API
 
-## Event Handling
+The library includes a `ConnectionsController` for querying connected users:
 
-The hub automatically broadcasts connection events if `BroadcastConnectionEvents` is enabled. Clients will receive events with this structure:
+### Enable Controllers
 
 ```csharp
+builder.Services.AddControllers();
+app.MapControllers();
+```
+
+### Available Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/connections` | Get all connected users with their connections |
+| GET | `/api/connections?purgeStale=false` | Get connections without purging stale ones |
+| POST | `/api/connections/purge` | Purge stale connections, returns count purged |
+| GET | `/api/connections/count` | Get total number of active connections |
+| GET | `/api/connections/users/count` | Get number of unique connected users |
+| GET | `/api/connections/users/{userId}/status` | Check if a specific user is connected |
+| GET | `/api/connections/users/{userId}` | Get connections for a specific user |
+
+---
+
+## Database Model
+
+The library uses a simple `UserConnection` model:
+
+```csharp
+public class UserConnection
 {
-    "userId": "user123",
-    "connectionId": "connection456",
-    "userAgent": "Mozilla/5.0...",
-    "eventType": "Connected", // or "Disconnected"
-    "timestamp": "2025-01-01T12:00:00Z"
+    [Key]
+    public string ConnectionId { get; set; }
+
+    [Required]
+    public string UserId { get; set; }
+
+    public DateTime ConnectedAt { get; set; }
 }
 ```
+
+---
+
+## Complete Server Setup Example
+
+```csharp
+using Nesco.SignalRUserManagement.Server.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddControllers();
+
+// Add CORS for cross-origin clients
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:5001")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
+// Add authentication (JWT + Cookies)
+builder.Services.AddAuthentication()
+    .AddJwtBearer(options => { /* ... */ });
+
+// Add SignalR User Management
+builder.Services.AddSignalRUserManagement<ApplicationDbContext>(options =>
+{
+    options.EnableCommunicator = true;
+    options.AutoDeleteTempFiles = true;
+});
+
+// Add custom user ID provider
+builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
+
+// Add user name resolver (optional)
+builder.Services.AddScoped<IUserNameResolver, IdentityUserNameResolver>();
+
+var app = builder.Build();
+
+app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+app.MapSignalRUserManagement<ApplicationDbContext>();
+
+app.Run();
+```
+
+---
 
 ## Notes
 
-- The hub uses `Context.UserIdentifier` to track users, which is typically the authenticated user ID
-- Connections are automatically cleaned up on disconnect
-- The service is scoped to work with your DbContext lifecycle
-- All database operations are async and transactional
+- Connections are automatically tracked on connect/disconnect
+- Stale connections are purged using ping/pong validation
+- Large responses from clients are automatically handled via file upload
+- Streaming responses allow real-time UI updates as clients respond
+- The dashboard component uses Blazor-native expand/collapse (no JS required)

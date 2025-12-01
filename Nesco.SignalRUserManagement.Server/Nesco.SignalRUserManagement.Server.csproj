@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -7,16 +7,10 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Version>1.0.0</Version>
         <Authors>Nesco</Authors>
-        <Description>Server-side SignalR User Management for ASP.NET Core</Description>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <Description>Server-side SignalR User Management for ASP.NET Core with Dashboard components</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <RepositoryUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</RepositoryUrl>
         <PackageProjectUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</PackageProjectUrl>
     </PropertyGroup>
-
-    <ItemGroup>
-        <None Include="README.md" Pack="true" PackagePath="" />
-    </ItemGroup>
 
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -24,11 +18,10 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Nesco.SignalRUserManagement.Core\Nesco.SignalRUserManagement.Core.csproj" />
-        <ProjectReference Include="..\Nesco.SignalRCommunicator.Core\Nesco.SignalRCommunicator.Core.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
     </ItemGroup>
 
 </Project>

@@ -1,0 +1,451 @@
+﻿@page "/"
+@inject AuthService AuthService
+@inject UserConnectionClient ConnectionClient
+@inject MethodInvocationLogger InvocationLogger
+@implements IDisposable
+
+<style>
+    .card { border: 1px solid #dee2e6; border-radius: 0.375rem; margin-bottom: 1rem; }
+    .card-header { padding: 0.75rem 1rem; border-bottom: 1px solid #dee2e6; font-weight: bold; }
+    .card-body { padding: 1rem; }
+    .badge { display: inline-block; padding: 0.25em 0.5em; font-size: 0.75rem; font-weight: 700; border-radius: 0.25rem; }
+    .bg-success { background-color: #198754; color: white; }
+    .bg-danger { background-color: #dc3545; color: white; }
+    .bg-warning { background-color: #ffc107; color: black; }
+    .bg-info { background-color: #0dcaf0; color: black; }
+    .bg-secondary { background-color: #6c757d; color: white; }
+    .bg-primary { background-color: #0d6efd; color: white; }
+    .btn { display: inline-block; padding: 0.375rem 0.75rem; font-size: 1rem; border-radius: 0.25rem; cursor: pointer; border: none; }
+    .btn-primary { background-color: #0d6efd; color: white; }
+    .btn-outline-danger { background-color: transparent; border: 1px solid #dc3545; color: #dc3545; }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
+    .form-control { display: block; width: 100%; padding: 0.375rem 0.75rem; font-size: 1rem; border: 1px solid #ced4da; border-radius: 0.25rem; margin-bottom: 0.5rem; }
+    .alert { padding: 1rem; margin-bottom: 1rem; border-radius: 0.25rem; }
+    .alert-danger { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+    .alert-info { background-color: #cff4fc; color: #055160; border: 1px solid #b6effb; }
+    .text-muted { color: #6c757d; }
+    .text-primary { color: #0d6efd; }
+    .text-success { color: #198754; }
+    .text-danger { color: #dc3545; }
+    code { background-color: #f8f9fa; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-family: monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #dee2e6; }
+    .accordion-item { border: 1px solid #dee2e6; margin-bottom: -1px; }
+    .accordion-button { width: 100%; padding: 1rem; background: #f8f9fa; border: none; text-align: left; cursor: pointer; }
+    .accordion-button.collapsed { background: white; }
+    .accordion-body { padding: 1rem; background: white; }
+    pre { background: #f8f9fa; padding: 0.5rem; border-radius: 0.25rem; overflow-x: auto; }
+</style>
+
+@if (!_isAuthenticated)
+{
+    <div style="max-width: 400px; margin: 2rem auto;">
+        <div class="card">
+            <div class="card-header" style="background-color: #0d6efd; color: white;">
+                Login to SignalR Client
+            </div>
+            <div class="card-body">
+                <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin">
+                    <div style="margin-bottom: 1rem;">
+                        <label>Email</label>
+                        <InputText class="form-control" @bind-Value="_loginModel.Email" placeholder="Enter email" />
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label>Password</label>
+                        <InputText type="password" class="form-control" @bind-Value="_loginModel.Password" placeholder="Enter password" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(_loginError))
+                    {
+                        <div class="alert alert-danger">@_loginError</div>
+                    }
+                    <button type="submit" class="btn btn-primary" style="width: 100%;" disabled="@_isLoggingIn">
+                        @(_isLoggingIn ? "Logging in..." : "Login")
+                    </button>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap;">
+        <div>
+            <h1>SignalR MAUI Client</h1>
+            <p class="text-muted">MAUI Blazor Hybrid client for SignalR User Management</p>
+        </div>
+        <div>
+            <span style="margin-right: 1rem;">Welcome, <strong>@_username</strong></span>
+            <button class="btn btn-outline-danger btn-sm" @onclick="HandleLogout">Logout</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="background-color: #0d6efd; color: white;">
+            User Management Hub
+        </div>
+        <div class="card-body">
+            <table>
+                <tr>
+                    <td style="width: 150px;"><strong>Status:</strong></td>
+                    <td>
+                        @if (_isConnected)
+                        {
+                            <span class="badge bg-success">Connected</span>
+                        }
+                        else if (_isConnecting || _isReconnecting)
+                        {
+                            <span class="badge bg-warning">@(_isConnecting ? "Connecting..." : "Reconnecting...")</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">Disconnected</span>
+                        }
+                    </td>
+                </tr>
+                @if (_isConnected && !string.IsNullOrEmpty(_connectionId))
+                {
+                    <tr>
+                        <td><strong>Connection ID:</strong></td>
+                        <td><code class="text-primary">@_connectionId</code></td>
+                    </tr>
+                }
+                <tr>
+                    <td><strong>Hub URL:</strong></td>
+                    <td><small>@_hubUrl</small></td>
+                </tr>
+                <tr>
+                    <td><strong>Client Type:</strong></td>
+                    <td><span class="badge bg-secondary">MAUI Blazor Hybrid</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Platform:</strong></td>
+                    <td><span class="badge bg-info">@DeviceInfo.Platform</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Device:</strong></td>
+                    <td><small>@DeviceInfo.Manufacturer @DeviceInfo.Model</small></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="background-color: #198754; color: white;">
+            Registered Client Methods
+        </div>
+        <div class="card-body">
+            <p>The server can invoke <strong>7 methods</strong> on this client:</p>
+            <p><code>Ping</code>, <code>Echo</code>, <code>Alert</code>, <code>Navigate</code>, <code>GetClientInfo</code>, <code>Calculate</code>, <code>GetLargeData</code></p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="background-color: #0dcaf0; color: black;">
+            API Reference
+        </div>
+        <div class="card-body">
+            <div class="accordion-item">
+                <button class="accordion-button @(_expandedMethod != "Ping" ? "collapsed" : "")" @onclick="@(() => ToggleMethod("Ping"))">
+                    <code>Ping</code> <span class="text-muted" style="margin-left: 0.5rem;">- Connectivity check</span>
+                </button>
+                @if (_expandedMethod == "Ping")
+                {
+                    <div class="accordion-body">
+                        <p><strong>Description:</strong> Returns "Pong" with timestamp.</p>
+                        <p><strong>Parameters:</strong> None</p>
+                        <p><strong>Response:</strong> <code>{"message": "Pong", "timestamp": "..."}</code></p>
+                    </div>
+                }
+            </div>
+            <div class="accordion-item">
+                <button class="accordion-button @(_expandedMethod != "Echo" ? "collapsed" : "")" @onclick="@(() => ToggleMethod("Echo"))">
+                    <code>Echo</code> <span class="text-muted" style="margin-left: 0.5rem;">- Echo back message</span>
+                </button>
+                @if (_expandedMethod == "Echo")
+                {
+                    <div class="accordion-body">
+                        <p><strong>Parameters:</strong> <code>{"Message": "Hello!"}</code></p>
+                        <p><strong>Response:</strong> <code>{"echo": "Hello!", "receivedAt": "..."}</code></p>
+                    </div>
+                }
+            </div>
+            <div class="accordion-item">
+                <button class="accordion-button @(_expandedMethod != "GetClientInfo" ? "collapsed" : "")" @onclick="@(() => ToggleMethod("GetClientInfo"))">
+                    <code>GetClientInfo</code> <span class="text-muted" style="margin-left: 0.5rem;">- Get device info</span>
+                </button>
+                @if (_expandedMethod == "GetClientInfo")
+                {
+                    <div class="accordion-body">
+                        <p><strong>Parameters:</strong> None</p>
+                        <p><strong>Response:</strong> Device platform, model, manufacturer, OS version</p>
+                    </div>
+                }
+            </div>
+            <div class="accordion-item">
+                <button class="accordion-button @(_expandedMethod != "Calculate" ? "collapsed" : "")" @onclick="@(() => ToggleMethod("Calculate"))">
+                    <code>Calculate</code> <span class="text-muted" style="margin-left: 0.5rem;">- Arithmetic</span>
+                </button>
+                @if (_expandedMethod == "Calculate")
+                {
+                    <div class="accordion-body">
+                        <p><strong>Parameters:</strong> <code>{"A": 10, "B": 5, "Operation": "+"}</code></p>
+                        <p><strong>Response:</strong> <code>{"result": 15}</code></p>
+                    </div>
+                }
+            </div>
+            <div class="accordion-item">
+                <button class="accordion-button @(_expandedMethod != "GetLargeData" ? "collapsed" : "")" @onclick="@(() => ToggleMethod("GetLargeData"))">
+                    <code>GetLargeData</code> <span class="text-muted" style="margin-left: 0.5rem;">- Large dataset (file upload)</span>
+                </button>
+                @if (_expandedMethod == "GetLargeData")
+                {
+                    <div class="accordion-body">
+                        <p><strong>Description:</strong> Generates large data that triggers file upload mechanism.</p>
+                        <p><strong>Parameters:</strong> <code>{"ItemCount": 500}</code></p>
+                        <p><strong>Response:</strong> Array of items with id, name, description, value, tags, metadata</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="background-color: #ffc107; color: black; display: flex; justify-content: space-between; align-items: center;">
+            <span>Method Invocation Log</span>
+            <button class="btn btn-sm" style="background: white; border: 1px solid #333;" @onclick="ClearLog">Clear</button>
+        </div>
+        <div class="card-body">
+            @if (!_methodLogs.Any())
+            {
+                <div class="alert alert-info">
+                    <p style="margin: 0;">No methods invoked yet. Use the server dashboard to invoke methods.</p>
+                </div>
+            }
+            else
+            {
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr><th>Time</th><th>Method</th><th>Result</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var log in _methodLogs)
+                            {
+                                <tr style="@(log.Success ? "" : "background-color: #f8d7da;")">
+                                    <td><small>@log.Timestamp.ToString("HH:mm:ss")</small></td>
+                                    <td><code class="text-primary">@log.MethodName</code></td>
+                                    <td>
+                                        @if (log.Success)
+                                        {
+                                            <small class="text-success">@(log.Result?.Length > 40 ? log.Result.Substring(0, 40) + "..." : log.Result)</small>
+                                        }
+                                        else
+                                        {
+                                            <small class="text-danger">@log.Error</small>
+                                        }
+                                    </td>
+                                    <td><span class="badge @(log.Success ? "bg-success" : "bg-danger")">@(log.Success ? "OK" : "ERR")</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="background-color: #212529; color: white;">
+            Testing Instructions
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <ol style="margin: 0; padding-left: 1.5rem;">
+                    <li>Ensure connection shows <span class="badge bg-success">Connected</span></li>
+                    <li>On your computer, go to <code>http://localhost:5000/signalr-test</code></li>
+                    <li>Find this MAUI client in "Connected Users"</li>
+                    <li>Invoke methods and see results here</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isAuthenticated;
+    private string _username = string.Empty;
+    private bool _isConnected;
+    private bool _isConnecting;
+    private bool _isReconnecting;
+    private string _connectionId = string.Empty;
+
+    // Hub URL - must match MauiProgram.cs ServerUrl
+    // For physical Android devices, update the IP address below
+    private const string DevMachineIp = "192.168.1.100"; // <-- UPDATE THIS to match MauiProgram.cs!
+
+#if ANDROID
+    // For Android Emulator use 10.0.2.2, for physical device use DevMachineIp
+    private string _hubUrl = "http://10.0.2.2:5000/hubs/usermanagement";        // Emulator
+    // private string _hubUrl = $"http://{DevMachineIp}:5000/hubs/usermanagement"; // Physical device
+#else
+    private string _hubUrl = "http://localhost:5000/hubs/usermanagement";
+#endif
+
+    private Timer? _statusTimer;
+    private Timer? _reconnectTimer;
+    private IEnumerable<MethodInvocationLog> _methodLogs = Enumerable.Empty<MethodInvocationLog>();
+    private string? _expandedMethod;
+    private LoginModel _loginModel = new();
+    private bool _isLoggingIn;
+    private string? _loginError;
+
+    private void ToggleMethod(string methodName) => _expandedMethod = _expandedMethod == methodName ? null : methodName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isAuthenticated = AuthService.IsAuthenticated;
+        if (_isAuthenticated) await InitializeAuthenticatedState();
+    }
+
+    private async Task InitializeAuthenticatedState()
+    {
+        _username = AuthService.CurrentUser.Identity?.Name ?? "Unknown";
+
+        ConnectionClient.ConnectionStatusChanged += OnConnectionStatusChanged;
+        ConnectionClient.Reconnecting += OnReconnecting;
+        ConnectionClient.Reconnected += OnReconnected;
+        InvocationLogger.OnLogAdded += OnLogAdded;
+
+        RefreshLogs();
+        UpdateConnectionState();
+
+        _statusTimer = new Timer(async _ =>
+        {
+            UpdateConnectionState();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
+
+        if (!ConnectionClient.IsConnected && !string.IsNullOrEmpty(AuthService.AccessToken))
+            await StartConnection();
+    }
+
+    private async Task HandleLogin()
+    {
+        _isLoggingIn = true;
+        _loginError = null;
+
+        Console.WriteLine($"=== HandleLogin called ===");
+        Console.WriteLine($"Email: {_loginModel.Email}");
+
+        try
+        {
+            var result = await AuthService.LoginAsync(_loginModel.Email, _loginModel.Password);
+            Console.WriteLine($"LoginAsync returned: {result}");
+
+            if (result)
+            {
+                _isAuthenticated = true;
+                await InitializeAuthenticatedState();
+            }
+            else
+            {
+                // Show detailed error from AuthService
+                _loginError = AuthService.LastError ?? "Invalid email or password";
+                Console.WriteLine($"Login failed with error: {_loginError}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _loginError = $"Login failed: {ex.GetType().Name} - {ex.Message}";
+            Console.WriteLine($"Login exception: {ex}");
+        }
+        finally
+        {
+            _isLoggingIn = false;
+        }
+    }
+
+    private async Task StartConnection()
+    {
+        _isConnecting = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await ConnectionClient.StartAsync(_hubUrl, () => Task.FromResult(AuthService.AccessToken!));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Connection failed: {ex.Message}");
+            _isConnecting = false;
+            StartContinuousRetry();
+        }
+    }
+
+    private void StartContinuousRetry()
+    {
+        _reconnectTimer?.Dispose();
+        _reconnectTimer = new Timer(async _ =>
+        {
+            if (!ConnectionClient.IsConnected && AuthService.IsAuthenticated)
+            {
+                try { await ConnectionClient.StartAsync(_hubUrl, () => Task.FromResult(AuthService.AccessToken!)); }
+                catch { /* Retry on next tick */ }
+            }
+            else if (ConnectionClient.IsConnected)
+            {
+                _reconnectTimer?.Dispose();
+                _reconnectTimer = null;
+            }
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task HandleLogout()
+    {
+        await ConnectionClient.StopAsync();
+        await AuthService.LogoutAsync();
+
+        ConnectionClient.ConnectionStatusChanged -= OnConnectionStatusChanged;
+        ConnectionClient.Reconnecting -= OnReconnecting;
+        ConnectionClient.Reconnected -= OnReconnected;
+        InvocationLogger.OnLogAdded -= OnLogAdded;
+
+        _statusTimer?.Dispose();
+        _reconnectTimer?.Dispose();
+        _isAuthenticated = false;
+        _loginModel = new LoginModel();
+    }
+
+    private void UpdateConnectionState()
+    {
+        _isConnected = ConnectionClient.IsConnected;
+        _connectionId = _isConnected ? ConnectionClient.ConnectionId ?? string.Empty : string.Empty;
+        if (_isConnected) _isConnecting = false;
+    }
+
+    private async void OnConnectionStatusChanged(bool isConnected)
+    {
+        _isConnecting = false;
+        if (isConnected) { _reconnectTimer?.Dispose(); _reconnectTimer = null; }
+        UpdateConnectionState();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnReconnecting() { _isReconnecting = true; await InvokeAsync(StateHasChanged); }
+    private async void OnReconnected(string? _) { _isReconnecting = false; UpdateConnectionState(); await InvokeAsync(StateHasChanged); }
+    private async void OnLogAdded() { RefreshLogs(); await InvokeAsync(StateHasChanged); }
+    private void RefreshLogs() => _methodLogs = InvocationLogger.GetLogs();
+    private void ClearLog() { InvocationLogger.Clear(); RefreshLogs(); }
+
+    public void Dispose()
+    {
+        _statusTimer?.Dispose();
+        _reconnectTimer?.Dispose();
+        ConnectionClient.ConnectionStatusChanged -= OnConnectionStatusChanged;
+        ConnectionClient.Reconnecting -= OnReconnecting;
+        ConnectionClient.Reconnected -= OnReconnected;
+        InvocationLogger.OnLogAdded -= OnLogAdded;
+    }
+
+    private class LoginModel { public string Email { get; set; } = string.Empty; public string Password { get; set; } = string.Empty; }
+}

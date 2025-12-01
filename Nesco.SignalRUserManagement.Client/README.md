@@ -1,6 +1,15 @@
 # Nesco.SignalRUserManagement.Client
 
-Client-side package for connecting to SignalR User Management hubs from Blazor WebAssembly applications.
+Client-side library for connecting to SignalR User Management hubs. Supports Blazor WebAssembly, Blazor Server, and MAUI Blazor Hybrid applications.
+
+## Features
+
+- Automatic reconnection with configurable delays
+- Method invocation handling via `IMethodExecutor`
+- Large response support with automatic file upload
+- Streaming multi-response support
+- JWT authentication for cross-origin connections
+- Works with Blazor WebAssembly, Blazor Server, and MAUI
 
 ## Installation
 
@@ -8,187 +17,405 @@ Client-side package for connecting to SignalR User Management hubs from Blazor W
 dotnet add package Nesco.SignalRUserManagement.Client
 ```
 
-## Usage
+## Quick Start
 
-### 1. Configure services in Program.cs
+### 1. Create a Method Executor
+
+Implement `IMethodExecutor` to handle server-initiated method calls:
+
+```csharp
+using Nesco.SignalRUserManagement.Core.Interfaces;
+using Nesco.SignalRUserManagement.Core.Utilities;
+
+public class ClientMethodExecutor : IMethodExecutor
+{
+    public async Task<object?> ExecuteAsync(string methodName, object? parameter)
+    {
+        return methodName switch
+        {
+            "Ping" => new { message = "Pong", timestamp = DateTime.UtcNow },
+            "Echo" => HandleEcho(parameter),
+            "GetClientInfo" => GetClientInfo(),
+            _ => throw new NotSupportedException($"Method '{methodName}' is not supported")
+        };
+    }
+
+    private object HandleEcho(object? parameter)
+    {
+        var request = ParameterParser.Parse<EchoRequest>(parameter);
+        return new { echo = request.Message, receivedAt = DateTime.UtcNow };
+    }
+
+    private object GetClientInfo()
+    {
+        return new
+        {
+            platform = "Blazor WebAssembly",
+            timestamp = DateTime.UtcNow
+        };
+    }
+}
+
+public class EchoRequest { public string Message { get; set; } = string.Empty; }
+```
+
+### 2. Configure Services
 
 ```csharp
 using Nesco.SignalRUserManagement.Client.Extensions;
 
-builder.Services.AddUserManagementClient(options =>
+builder.Services.AddSignalRUserManagementClient<ClientMethodExecutor>(options =>
 {
-    options.BroadcastConnectionEvents = true;
-    options.ConnectionEventMethod = "UserConnectionEvent";
+    options.MaxDirectDataSizeBytes = 64 * 1024; // 64KB threshold for file upload
+    options.EnableFileUpload = true; // Enable for large responses
 });
 ```
 
-### 2. Initialize the connection
+### 3. Connect to the Hub
 
 ```csharp
 @inject UserConnectionClient ConnectionClient
 
-protected override async Task OnInitializedAsync()
-{
-    // Simple initialization
-    await ConnectionClient.InitializeAsync("https://yourserver.com/hubs/messaging");
-
-    // With authentication
-    await ConnectionClient.InitializeAsync(
-        "https://yourserver.com/hubs/messaging",
-        async () => await GetAccessTokenAsync());
-
-    // Subscribe to connection status changes
-    ConnectionClient.ConnectionStatusChanged += OnConnectionStatusChanged;
-
-    // Subscribe to user connection events
-    ConnectionClient.UserConnectionEventReceived += OnUserConnectionEvent;
-
-    // Register message handlers
-    ConnectionClient.On<string>("ReceiveNotification", async (message) =>
-    {
-        Console.WriteLine($"Received: {message}");
-        StateHasChanged();
-    });
-}
-
-private void OnConnectionStatusChanged(bool isConnected)
-{
-    Console.WriteLine($"Connection status: {(isConnected ? "Connected" : "Disconnected")}");
-    StateHasChanged();
-}
-
-private Task OnUserConnectionEvent(UserConnectionEventArgs eventArgs)
-{
-    Console.WriteLine($"User {eventArgs.UserId} {eventArgs.EventType}");
-    return Task.CompletedTask;
-}
+await ConnectionClient.StartAsync(
+    "https://server.com/hubs/usermanagement",
+    accessTokenProvider: () => Task.FromResult(myJwtToken));
 ```
 
-### 3. Send messages to the server
+---
+
+## Platform-Specific Setup
+
+### Blazor WebAssembly
+
+#### Program.cs
 
 ```csharp
-// Send a message to the server
-await ConnectionClient.SendAsync("SendMessage", "Hello server!");
+using Nesco.SignalRUserManagement.Client.Extensions;
 
-// Invoke a method and get a result
-var result = await ConnectionClient.InvokeAsync<string>("GetServerTime");
-```
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
-### 4. Check connection status
+const string serverUrl = "http://localhost:5000";
 
-```csharp
-bool isConnected = ConnectionClient.IsConnected;
-string? connectionId = ConnectionClient.ConnectionId;
-var state = ConnectionClient.ConnectionState;
-```
-
-### 5. Manual reconnection
-
-```csharp
-if (!ConnectionClient.IsConnected)
+// Configure HttpClient for API calls
+builder.Services.AddScoped(sp => new HttpClient
 {
-    await ConnectionClient.ReconnectAsync();
-}
+    BaseAddress = new Uri(serverUrl)
+});
+
+// Add authentication
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
+builder.Services.AddAuthorizationCore();
+
+// Add SignalR User Management Client
+builder.Services.AddSignalRUserManagementClient<ClientMethodExecutor>(options =>
+{
+    options.MaxDirectDataSizeBytes = 64 * 1024; // 64KB
+});
+
+await builder.Build().RunAsync();
 ```
 
-## Complete Example
+#### Home.razor (Connection Example)
 
-```csharp
-@page "/notifications"
+```razor
 @inject UserConnectionClient ConnectionClient
-@implements IAsyncDisposable
+@inject AuthService AuthService
+@implements IDisposable
 
-<h3>Notifications</h3>
-
-<p>Status: @(ConnectionClient.IsConnected ? "Connected" : "Disconnected")</p>
-<p>Connection ID: @ConnectionClient.ConnectionId</p>
-
-<ul>
-    @foreach (var notification in _notifications)
-    {
-        <li>@notification</li>
-    }
-</ul>
+<div>
+    Status: @(ConnectionClient.IsConnected ? "Connected" : "Disconnected")
+</div>
 
 @code {
-    private List<string> _notifications = new();
-
     protected override async Task OnInitializedAsync()
     {
-        // Initialize connection
-        await ConnectionClient.InitializeAsync(
-            "https://localhost:5004/hubs/messaging",
-            () => Task.FromResult(AccessToken));
+        ConnectionClient.ConnectionStatusChanged += OnConnectionChanged;
 
-        // Subscribe to events
-        ConnectionClient.ConnectionStatusChanged += (isConnected) =>
+        if (AuthService.IsAuthenticated && !ConnectionClient.IsConnected)
         {
-            StateHasChanged();
-        };
-
-        // Register message handlers
-        ConnectionClient.On<string>("ReceiveNotification", async (message) =>
-        {
-            _notifications.Add(message);
-            StateHasChanged();
-        });
-
-        ConnectionClient.On<UserConnectionEventArgs>("UserConnectionEvent", async (eventArgs) =>
-        {
-            _notifications.Add($"User {eventArgs.UserId} {eventArgs.EventType}");
-            StateHasChanged();
-        });
+            await ConnectionClient.StartAsync(
+                "http://localhost:5000/hubs/usermanagement",
+                () => Task.FromResult(AuthService.AccessToken!));
+        }
     }
 
-    public async ValueTask DisposeAsync()
+    private async void OnConnectionChanged(bool connected)
     {
-        await ConnectionClient.StopAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ConnectionClient.ConnectionStatusChanged -= OnConnectionChanged;
     }
 }
 ```
 
-## Features
+---
 
-- **Automatic Reconnection**: Automatically reconnects with exponential backoff
-- **Connection Events**: Receive notifications when users connect/disconnect
-- **Type-safe Message Handling**: Register strongly-typed message handlers
-- **Authentication Support**: Integrate with JWT or other authentication mechanisms
-- **Connection Status Monitoring**: Track connection state changes in real-time
-- **Manual Control**: Start, stop, and reconnect as needed
+### Blazor Server (as Client)
 
-## Events
+Blazor Server apps can act as clients to another SignalR server.
 
-### ConnectionStatusChanged
-Raised when the connection state changes (connected/disconnected).
+#### Program.cs
 
 ```csharp
-ConnectionClient.ConnectionStatusChanged += (isConnected) =>
+using Nesco.SignalRUserManagement.Client.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+
+const string serverUrl = "http://localhost:5000";
+
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+// Configure HttpClient
+builder.Services.AddHttpClient("ServerApi", client =>
 {
-    Console.WriteLine($"Connection: {isConnected}");
+    client.BaseAddress = new Uri(serverUrl);
+});
+
+// Register default HttpClient for file upload service
+builder.Services.AddScoped(sp =>
+{
+    var factory = sp.GetRequiredService<IHttpClientFactory>();
+    return factory.CreateClient("ServerApi");
+});
+
+// Add authentication service
+builder.Services.AddSingleton<AuthService>();
+
+// Add SignalR User Management Client with file upload
+builder.Services.AddSignalRUserManagementClient<ClientMethodExecutor>(options =>
+{
+    options.MaxDirectDataSizeBytes = 64 * 1024; // 64KB
+    options.EnableFileUpload = true;
+});
+
+var app = builder.Build();
+app.Run();
+```
+
+#### Key Differences from WebAssembly
+
+- Use `IHttpClientFactory` for HTTP clients
+- Register a default `HttpClient` using the factory for `DefaultFileUploadService`
+- Services can be singleton since Blazor Server runs on the server
+
+---
+
+### MAUI Blazor Hybrid
+
+#### MauiProgram.cs
+
+```csharp
+using Nesco.SignalRUserManagement.Client.Extensions;
+
+public static class MauiProgram
+{
+    // For Android emulator use 10.0.2.2, for physical device use your machine's IP
+#if ANDROID
+    private const string ServerUrl = "http://10.0.2.2:5000";  // Emulator
+    // private const string ServerUrl = "http://192.168.1.100:5000"; // Physical device
+#else
+    private const string ServerUrl = "http://localhost:5000";
+#endif
+
+    public static MauiApp CreateMauiApp()
+    {
+        var builder = MauiApp.CreateBuilder();
+        builder.UseMauiApp<App>()
+            .ConfigureFonts(fonts => fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular"));
+
+        builder.Services.AddMauiBlazorWebView();
+
+        // Configure HttpClient
+        builder.Services.AddSingleton(sp => new HttpClient
+        {
+            BaseAddress = new Uri(ServerUrl)
+        });
+
+        // Add authentication service
+        builder.Services.AddSingleton<AuthService>();
+
+        // Add SignalR User Management Client
+        builder.Services.AddSignalRUserManagementClient<ClientMethodExecutor>(options =>
+        {
+            options.MaxDirectDataSizeBytes = 64 * 1024; // 64KB
+            options.EnableFileUpload = true;
+        });
+
+        return builder.Build();
+    }
+}
+```
+
+#### Android Network Configuration
+
+For Android physical devices:
+1. Find your dev machine's IP: `ipconfig` (Windows) or `ifconfig` (Mac/Linux)
+2. Ensure phone and dev machine are on the same network
+3. Update `ServerUrl` to use your machine's IP
+4. Make sure the server listens on `0.0.0.0` or the specific IP
+
+---
+
+## Configuration Options
+
+```csharp
+builder.Services.AddSignalRUserManagementClient<ClientMethodExecutor>(options =>
+{
+    // Connection settings
+    options.HubUrl = "https://server.com/hubs/usermanagement"; // Optional default URL
+    options.ReconnectDelaysSeconds = [0, 2, 5, 10, 30]; // Reconnect backoff
+
+    // Large response handling
+    options.MaxDirectDataSizeBytes = 64 * 1024; // 64KB - responses larger than this use file upload
+    options.EnableFileUpload = true; // Enable file upload for large responses
+    options.FileUploadRoute = "api/signalr/upload"; // Server upload endpoint
+    options.TempFolder = "signalr-temp"; // Server-side temp folder
+});
+```
+
+---
+
+## API Reference
+
+### UserConnectionClient
+
+```csharp
+// Properties
+bool IsConnected { get; }
+string? ConnectionId { get; }
+HubConnectionState State { get; }
+HubConnection? Connection { get; }
+
+// Events
+event Action<bool>? ConnectionChanged;
+event Action<bool>? ConnectionStatusChanged;
+event Action? Reconnecting;
+event Action<string?>? Reconnected;
+
+// Methods
+Task StartAsync(
+    string hubUrl,
+    Func<Task<string>>? accessTokenProvider = null,
+    Action<HttpConnectionOptions>? configureOptions = null);
+
+Task StopAsync();
+
+void On<T>(string methodName, Action<T> handler);
+void On<T>(string methodName, Func<T, Task> handler);
+
+Task SendAsync(string methodName, object? arg = null);
+Task<T> InvokeAsync<T>(string methodName, object? arg = null);
+```
+
+### IMethodExecutor
+
+Implement this interface to handle server-initiated method calls:
+
+```csharp
+public interface IMethodExecutor
+{
+    Task<object?> ExecuteAsync(string methodName, object? parameter);
+}
+```
+
+### ParameterParser
+
+Utility for parsing method parameters:
+
+```csharp
+var request = ParameterParser.Parse<MyRequest>(parameter);
+```
+
+---
+
+## Large Response Handling
+
+When a method returns data larger than `MaxDirectDataSizeBytes`, the client automatically:
+
+1. Serializes the response to JSON
+2. Uploads it to the server via HTTP POST
+3. Returns the file path to the server
+4. Server reads the file and processes the response
+
+This enables returning large datasets without hitting SignalR message size limits.
+
+### Example: Large Data Method
+
+```csharp
+public class ClientMethodExecutor : IMethodExecutor
+{
+    public async Task<object?> ExecuteAsync(string methodName, object? parameter)
+    {
+        return methodName switch
+        {
+            "GetLargeData" => GenerateLargeData(parameter),
+            // ...
+        };
+    }
+
+    private object GenerateLargeData(object? parameter)
+    {
+        var request = ParameterParser.Parse<LargeDataRequest>(parameter);
+        var items = new List<DataItem>();
+
+        for (var i = 0; i < request.ItemCount; i++)
+        {
+            items.Add(new DataItem
+            {
+                Id = i,
+                Name = $"Item_{i}",
+                Description = "Lorem ipsum..."
+            });
+        }
+
+        return new { itemCount = items.Count, items };
+    }
+}
+```
+
+---
+
+## Connection Lifecycle
+
+### States
+
+| State | Description |
+|-------|-------------|
+| `Disconnected` | No connection to the server |
+| `Connecting` | Connection is being established |
+| `Connected` | Successfully connected |
+| `Reconnecting` | Connection lost, attempting to reconnect |
+
+### Events
+
+```csharp
+ConnectionClient.ConnectionStatusChanged += (connected) =>
+{
+    Console.WriteLine(connected ? "Connected!" : "Disconnected");
+};
+
+ConnectionClient.Reconnecting += () =>
+{
+    Console.WriteLine("Reconnecting...");
+};
+
+ConnectionClient.Reconnected += (connectionId) =>
+{
+    Console.WriteLine($"Reconnected: {connectionId}");
 };
 ```
 
-### UserConnectionEventReceived
-Raised when another user connects or disconnects (if BroadcastConnectionEvents is enabled).
-
-```csharp
-ConnectionClient.UserConnectionEventReceived += async (eventArgs) =>
-{
-    Console.WriteLine($"{eventArgs.UserId} {eventArgs.EventType}");
-};
-```
-
-## Connection States
-
-- **Disconnected**: No connection to the server
-- **Connecting**: Connection is being established
-- **Connected**: Successfully connected and can send/receive messages
-- **Reconnecting**: Connection was lost and is being re-established
+---
 
 ## Notes
 
-- The client automatically reconnects with exponential backoff (0s, 2s, 5s, 10s)
-- All message handlers are executed asynchronously
-- The service is registered as a singleton and can be injected anywhere
-- Connection status changes trigger events that can update the UI
-- Dispose the client properly to clean up resources
+- The client automatically responds to server pings for connection validation
+- Reconnection happens automatically with configurable backoff delays
+- For cross-origin connections, ensure the server has CORS configured
+- JWT tokens are passed via query string for SignalR WebSocket connections
+- File upload requires the server to have the upload endpoint configured
