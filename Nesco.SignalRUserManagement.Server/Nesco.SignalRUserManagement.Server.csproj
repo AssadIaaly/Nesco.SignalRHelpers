@@ -5,7 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>1.0.1</Version>
+        <Version>1.0.2</Version>
         <Authors>Nesco</Authors>
         <Description>Server-side SignalR User Management for ASP.NET Core with Dashboard components</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
