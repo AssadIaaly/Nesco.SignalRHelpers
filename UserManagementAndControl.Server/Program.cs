@@ -9,6 +9,7 @@ using Nesco.SignalRUserManagement.Server.Extensions;
 using UserManagementAndControl.Server.Components;
 using UserManagementAndControl.Server.Components.Account;
 using UserManagementAndControl.Server.Data;
+using UserManagementAndControl.Server.Hubs;
 using UserManagementAndControl.Server.Services;
 
 // =============================================================================
@@ -190,9 +191,10 @@ app.MapAdditionalIdentityEndpoints();
 app.MapControllers();
 
 // ============================================================================
-// Map the SignalR User Management Hub - Single call
+// Map the SignalR User Management Hub with custom AppHub
+// AppHub extends UserManagementHub with additional methods like GetServerTime, Echo, etc.
 // ============================================================================
-app.MapSignalRUserManagement<ApplicationDbContext>()
+app.MapSignalRUserManagement<AppHub, ApplicationDbContext>()
     .RequireAuthorization(policy =>
         policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, IdentityConstants.ApplicationScheme)
               .RequireAuthenticatedUser());

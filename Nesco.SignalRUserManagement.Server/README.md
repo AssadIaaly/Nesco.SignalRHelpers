@@ -323,39 +323,6 @@ builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
 
 ---
 
-## User Name Resolution
-
-By default, the API only returns user IDs. To include user names, implement `IUserNameResolver`:
-
-```csharp
-public class IdentityUserNameResolver : IUserNameResolver
-{
-    private readonly UserManager<ApplicationUser> _userManager;
-
-    public IdentityUserNameResolver(UserManager<ApplicationUser> userManager)
-    {
-        _userManager = userManager;
-    }
-
-    public async Task<Dictionary<string, string>> ResolveUserNamesAsync(IEnumerable<string> userIds)
-    {
-        var users = await _userManager.Users
-            .Where(u => userIds.Contains(u.Id))
-            .Select(u => new { u.Id, u.UserName, u.Email })
-            .ToListAsync();
-
-        return users.ToDictionary(
-            u => u.Id,
-            u => u.UserName ?? u.Email ?? u.Id);
-    }
-}
-
-// Register
-builder.Services.AddScoped<IUserNameResolver, IdentityUserNameResolver>();
-```
-
----
-
 ## Built-in REST API
 
 The library includes a `ConnectionsController` for querying connected users:
@@ -383,7 +350,7 @@ app.MapControllers();
 
 ## Database Model
 
-The library uses a simple `UserConnection` model:
+The library uses a `UserConnection` model that stores connection information:
 
 ```csharp
 public class UserConnection
@@ -394,9 +361,29 @@ public class UserConnection
     [Required]
     public string UserId { get; set; }
 
+    /// <summary>
+    /// The username associated with this connection (resolved at connection time from claims)
+    /// </summary>
+    public string? Username { get; set; }
+
+    /// <summary>
+    /// Extra data that can be stored with the connection (e.g., JSON metadata)
+    /// </summary>
+    public string? Extra { get; set; }
+
     public DateTime ConnectedAt { get; set; }
 }
 ```
+
+### Username Resolution
+
+The `Username` is automatically populated when a user connects by reading from common claim types:
+- `ClaimTypes.Name`
+- `name` claim
+- `preferred_username` claim
+- `Identity.Name`
+
+This means user names are available in the dashboard and API without any additional configuration.
 
 ---
 
@@ -438,9 +425,6 @@ builder.Services.AddSignalRUserManagement<ApplicationDbContext>(options =>
 
 // Add custom user ID provider
 builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
-
-// Add user name resolver (optional)
-builder.Services.AddScoped<IUserNameResolver, IdentityUserNameResolver>();
 
 var app = builder.Build();
 

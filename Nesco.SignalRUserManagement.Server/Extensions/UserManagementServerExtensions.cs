@@ -142,6 +142,39 @@ public static class UserManagementServerExtensions
         return endpoints.MapHub<UserManagementHub<TDbContext>>(finalPattern);
     }
 
+    /// <summary>
+    /// Maps a custom hub that inherits from UserManagementHub.
+    /// Use this when you need to add custom methods to the hub.
+    /// </summary>
+    /// <typeparam name="THub">Custom hub type that inherits from UserManagementHub</typeparam>
+    /// <typeparam name="TDbContext">DbContext type</typeparam>
+    /// <param name="endpoints">Endpoint route builder</param>
+    /// <param name="pattern">Optional hub path override. Defaults to /hubs/usermanagement.</param>
+    /// <example>
+    /// <code>
+    /// // Create a custom hub with additional methods
+    /// public class AppHub : UserManagementHub&lt;ApplicationDbContext&gt;
+    /// {
+    ///     public AppHub(ApplicationDbContext db, ILogger&lt;UserManagementHub&lt;ApplicationDbContext&gt;&gt; logger,
+    ///         IResponseManager? responseManager = null) : base(db, logger, responseManager) { }
+    ///
+    ///     public Task&lt;string&gt; GetServerTime() => Task.FromResult(DateTime.UtcNow.ToString("O"));
+    /// }
+    ///
+    /// // Map the custom hub
+    /// app.MapSignalRUserManagement&lt;AppHub, ApplicationDbContext&gt;();
+    /// </code>
+    /// </example>
+    public static HubEndpointConventionBuilder MapSignalRUserManagement<THub, TDbContext>(
+        this IEndpointRouteBuilder endpoints,
+        string? pattern = null)
+        where THub : UserManagementHub<TDbContext>
+        where TDbContext : DbContext
+    {
+        var finalPattern = pattern ?? "/hubs/usermanagement";
+        return endpoints.MapHub<THub>(finalPattern);
+    }
+
     #region Legacy Methods (for backward compatibility)
 
     /// <summary>

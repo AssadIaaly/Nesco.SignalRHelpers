@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Nesco.SignalRUserManagement.Core.Interfaces;
 using Nesco.SignalRUserManagement.Server.Models;
-using Nesco.SignalRUserManagement.Server.Services;
 
 namespace Nesco.SignalRUserManagement.Server.Controllers;
 
@@ -18,16 +17,13 @@ public class ConnectionsController : ControllerBase
 {
     private readonly IUserConnectionDbContext _dbContext;
     private readonly IUserConnectionService _connectionService;
-    private readonly IUserNameResolver? _userNameResolver;
 
     public ConnectionsController(
         IUserConnectionDbContext dbContext,
-        IUserConnectionService connectionService,
-        IUserNameResolver? userNameResolver = null)
+        IUserConnectionService connectionService)
     {
         _dbContext = dbContext;
         _connectionService = connectionService;
-        _userNameResolver = userNameResolver;
     }
 
     /// <summary>
@@ -48,6 +44,8 @@ public class ConnectionsController : ControllerBase
             .Select(g => new ConnectedUserDto
             {
                 UserId = g.Key,
+                // Get username from the first connection (all connections for a user should have the same username)
+                UserName = g.First().Username,
                 Connections = g.Select(c => new ConnectionDto
                 {
                     ConnectionId = c.ConnectionId,
@@ -55,20 +53,6 @@ public class ConnectionsController : ControllerBase
                 }).ToList()
             })
             .ToListAsync();
-
-        // Resolve user names if resolver is available
-        if (_userNameResolver != null && connections.Count > 0)
-        {
-            var userIds = connections.Select(c => c.UserId).ToList();
-            var userNames = await _userNameResolver.ResolveUserNamesAsync(userIds);
-            foreach (var connection in connections)
-            {
-                if (userNames.TryGetValue(connection.UserId, out var userName))
-                {
-                    connection.UserName = userName;
-                }
-            }
-        }
 
         return Ok(connections);
     }
@@ -124,16 +108,11 @@ public class ConnectionsController : ControllerBase
     [HttpGet("users/{userId}")]
     public async Task<ActionResult<ConnectedUserDto>> GetUserConnections(string userId)
     {
-        var connections = await _dbContext.UserConnections
+        var userConnections = await _dbContext.UserConnections
             .Where(c => c.UserId == userId)
-            .Select(c => new ConnectionDto
-            {
-                ConnectionId = c.ConnectionId,
-                ConnectedAt = c.ConnectedAt
-            })
             .ToListAsync();
 
-        if (!connections.Any())
+        if (!userConnections.Any())
         {
             return NotFound();
         }
@@ -141,18 +120,14 @@ public class ConnectionsController : ControllerBase
         var result = new ConnectedUserDto
         {
             UserId = userId,
-            Connections = connections
-        };
-
-        // Resolve user name if resolver is available
-        if (_userNameResolver != null)
-        {
-            var userNames = await _userNameResolver.ResolveUserNamesAsync([userId]);
-            if (userNames.TryGetValue(userId, out var userName))
+            // Get username from the first connection
+            UserName = userConnections.First().Username,
+            Connections = userConnections.Select(c => new ConnectionDto
             {
-                result.UserName = userName;
-            }
-        }
+                ConnectionId = c.ConnectionId,
+                ConnectedAt = c.ConnectedAt
+            }).ToList()
+        };
 
         return Ok(result);
     }

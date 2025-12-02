@@ -19,7 +19,6 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
     private readonly IUserCommunicatorService? _communicator;
     private readonly IUserConnectionService _userManagement;
     private readonly TDbContext _context;
-    private readonly IUserNameResolver? _userNameResolver;
     private readonly IFileReaderService? _fileReaderService;
     private readonly CommunicatorOptions _options;
     private readonly ILogger<SignalRUserManagementService<TDbContext>> _logger;
@@ -30,7 +29,6 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
         ILogger<SignalRUserManagementService<TDbContext>> logger,
         IOptions<CommunicatorOptions>? options = null,
         IUserCommunicatorService? communicator = null,
-        IUserNameResolver? userNameResolver = null,
         IFileReaderService? fileReaderService = null)
     {
         _userManagement = userManagement;
@@ -38,7 +36,6 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
         _logger = logger;
         _options = options?.Value ?? new CommunicatorOptions();
         _communicator = communicator;
-        _userNameResolver = userNameResolver;
         _fileReaderService = fileReaderService;
     }
 
@@ -337,20 +334,13 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
 
         _logger.LogInformation("Found {Count} connected users", connectedUsers.Count);
 
-        // Resolve user names if resolver is available
-        Dictionary<string, string>? userNames = null;
-        if (_userNameResolver != null)
-        {
-            var userIds = connectedUsers.Select(cu => cu.UserId).ToList();
-            userNames = await _userNameResolver.ResolveUserNamesAsync(userIds);
-        }
-
         var result = new List<ConnectedUserInfo>();
 
         foreach (var cu in connectedUsers)
         {
             var lastConnection = cu.Connections.OrderByDescending(c => c.ConnectedAt).FirstOrDefault();
-            var userName = userNames?.GetValueOrDefault(cu.UserId);
+            // Get username from the most recent connection (they should all have the same username for a user)
+            var userName = lastConnection?.Username;
 
             result.Add(new ConnectedUserInfo
             {

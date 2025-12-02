@@ -1,6 +1,7 @@
 @page "/"
 @using Nesco.SignalRUserManagement.Client.Services
 @using UserManagementAndControl.Client.Services
+@using UserManagementAndControl.Client.Extensions
 @inject AuthService AuthService
 @inject UserConnectionClient ConnectionClient
 @inject MethodInvocationLogger InvocationLogger
@@ -385,6 +386,128 @@ else
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Client-to-Server Methods (Custom Hub Methods)</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">These methods are called <strong>from the client to the server</strong> via the custom <code>AppHub</code>. Click a button to test:</p>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title"><code>GetServerTime</code></h6>
+                                    <p class="card-text small text-muted">Gets the current server time in ISO 8601 format.</p>
+                                    <button class="btn btn-primary btn-sm" @onclick="CallGetServerTime" disabled="@(!_isConnected || _isCallingServerMethod)">
+                                        @if (_isCallingServerMethod && _currentServerMethod == "GetServerTime")
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        Call GetServerTime
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title"><code>Echo</code></h6>
+                                    <p class="card-text small text-muted">Echoes a message back from the server.</p>
+                                    <div class="input-group input-group-sm mb-2">
+                                        <input type="text" class="form-control" placeholder="Enter message" @bind="_echoMessage" />
+                                    </div>
+                                    <button class="btn btn-primary btn-sm" @onclick="CallEcho" disabled="@(!_isConnected || _isCallingServerMethod)">
+                                        @if (_isCallingServerMethod && _currentServerMethod == "Echo")
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        Call Echo
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title"><code>BroadcastMessage</code></h6>
+                                    <p class="card-text small text-muted">Broadcasts a message to all connected clients.</p>
+                                    <div class="input-group input-group-sm mb-2">
+                                        <input type="text" class="form-control" placeholder="Enter broadcast message" @bind="_broadcastMessage" />
+                                    </div>
+                                    <button class="btn btn-warning btn-sm" @onclick="CallBroadcast" disabled="@(!_isConnected || _isCallingServerMethod)">
+                                        @if (_isCallingServerMethod && _currentServerMethod == "Broadcast")
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        Broadcast to All
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title"><code>SendNotificationToUser</code></h6>
+                                    <p class="card-text small text-muted">Sends a notification to a specific user.</p>
+                                    <div class="input-group input-group-sm mb-2">
+                                        <input type="text" class="form-control" placeholder="User ID" @bind="_notificationUserId" />
+                                    </div>
+                                    <div class="input-group input-group-sm mb-2">
+                                        <input type="text" class="form-control" placeholder="Title" @bind="_notificationTitle" />
+                                        <input type="text" class="form-control" placeholder="Message" @bind="_notificationMessage" />
+                                    </div>
+                                    <button class="btn btn-info btn-sm" @onclick="CallSendNotification" disabled="@(!_isConnected || _isCallingServerMethod)">
+                                        @if (_isCallingServerMethod && _currentServerMethod == "SendNotification")
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        Send Notification
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_serverMethodResult))
+                    {
+                        <div class="mt-3">
+                            <h6>Last Result:</h6>
+                            <pre class="bg-light p-2 mb-0"><code>@_serverMethodResult</code></pre>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_serverMethodError))
+                    {
+                        <div class="mt-3">
+                            <div class="alert alert-danger mb-0">
+                                <strong>Error:</strong> @_serverMethodError
+                            </div>
+                        </div>
+                    }
+
+                    @if (_receivedMessages.Any())
+                    {
+                        <div class="mt-3">
+                            <h6>Received Messages (Broadcasts & Notifications):</h6>
+                            <div class="bg-dark text-light p-2 rounded" style="max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.85em;">
+                                @foreach (var msg in _receivedMessages)
+                                {
+                                    <div>@msg</div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
                 <div class="card-header bg-warning d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Method Invocation Log</h5>
                     <button class="btn btn-sm btn-outline-dark" @onclick="ClearLog">Clear Log</button>
@@ -516,6 +639,18 @@ else
     private IEnumerable<MethodInvocationLog> _methodLogs = Enumerable.Empty<MethodInvocationLog>();
     private string? _expandedMethod;
 
+    // Client-to-server method call state
+    private bool _isCallingServerMethod;
+    private string _currentServerMethod = string.Empty;
+    private string _serverMethodResult = string.Empty;
+    private string _serverMethodError = string.Empty;
+    private string _echoMessage = "Hello from client!";
+    private string _broadcastMessage = "Broadcast message from client";
+    private string _notificationUserId = string.Empty;
+    private string _notificationTitle = "Notification";
+    private string _notificationMessage = "This is a test notification";
+    private List<string> _receivedMessages = new();
+
     private void ToggleMethod(string methodName)
     {
         _expandedMethod = _expandedMethod == methodName ? null : methodName;
@@ -569,6 +704,9 @@ else
             await ConnectionClient.StartAsync(
                 _hubUrl,
                 () => Task.FromResult(AuthService.AccessToken!));
+
+            // Register handlers for receiving broadcasts and notifications from AppHub
+            RegisterCustomHubHandlers();
         }
         catch (Exception ex)
         {
@@ -578,6 +716,28 @@ else
             // Start continuous retry timer
             StartContinuousRetry();
         }
+    }
+
+    private void RegisterCustomHubHandlers()
+    {
+        // Use the On method from UserConnectionClient which properly wraps HubConnection.On
+        // Handle broadcast messages from AppHub.BroadcastMessage
+        ConnectionClient.On<System.Text.Json.JsonElement>("ReceiveBroadcast", async (data) =>
+        {
+            var message = $"[{DateTime.Now:HH:mm:ss}] Broadcast received: {data.GetRawText()}";
+            _receivedMessages.Insert(0, message);
+            if (_receivedMessages.Count > 10) _receivedMessages.RemoveAt(_receivedMessages.Count - 1);
+            await InvokeAsync(StateHasChanged);
+        });
+
+        // Handle notifications from AppHub.SendNotificationToUser
+        ConnectionClient.On<System.Text.Json.JsonElement>("ReceiveNotification", async (data) =>
+        {
+            var message = $"[{DateTime.Now:HH:mm:ss}] Notification received: {data.GetRawText()}";
+            _receivedMessages.Insert(0, message);
+            if (_receivedMessages.Count > 10) _receivedMessages.RemoveAt(_receivedMessages.Count - 1);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private void StartContinuousRetry()
@@ -680,6 +840,80 @@ else
     {
         InvocationLogger.Clear();
         RefreshLogs();
+    }
+
+    // Client-to-server method calls using extension methods
+    private async Task CallGetServerTime()
+    {
+        await CallServerMethodAsync("GetServerTime", async () =>
+        {
+            var connection = ConnectionClient.Connection;
+            if (connection == null) throw new InvalidOperationException("Not connected");
+            return await connection.GetServerTimeAsync();
+        });
+    }
+
+    private async Task CallEcho()
+    {
+        await CallServerMethodAsync("Echo", async () =>
+        {
+            var connection = ConnectionClient.Connection;
+            if (connection == null) throw new InvalidOperationException("Not connected");
+            return await connection.EchoAsync(_echoMessage);
+        });
+    }
+
+    private async Task CallBroadcast()
+    {
+        await CallServerMethodAsync("Broadcast", async () =>
+        {
+            var connection = ConnectionClient.Connection;
+            if (connection == null) throw new InvalidOperationException("Not connected");
+            await connection.BroadcastMessageAsync(_broadcastMessage);
+            return "Broadcast sent successfully";
+        });
+    }
+
+    private async Task CallSendNotification()
+    {
+        if (string.IsNullOrWhiteSpace(_notificationUserId))
+        {
+            _serverMethodError = "Please enter a User ID";
+            return;
+        }
+
+        await CallServerMethodAsync("SendNotification", async () =>
+        {
+            var connection = ConnectionClient.Connection;
+            if (connection == null) throw new InvalidOperationException("Not connected");
+            await connection.SendNotificationToUserAsync(_notificationUserId, _notificationTitle, _notificationMessage);
+            return $"Notification sent to user {_notificationUserId}";
+        });
+    }
+
+    private async Task CallServerMethodAsync(string methodName, Func<Task<string>> action)
+    {
+        _isCallingServerMethod = true;
+        _currentServerMethod = methodName;
+        _serverMethodResult = string.Empty;
+        _serverMethodError = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var result = await action();
+            _serverMethodResult = result;
+        }
+        catch (Exception ex)
+        {
+            _serverMethodError = ex.Message;
+        }
+        finally
+        {
+            _isCallingServerMethod = false;
+            _currentServerMethod = string.Empty;
+            StateHasChanged();
+        }
     }
 
     public void Dispose()

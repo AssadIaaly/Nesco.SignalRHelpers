@@ -56,11 +56,18 @@ public class UserManagementHub<TDbContext> : Hub where TDbContext : DbContext
                 _logger.LogDebug("Removed {Count} stale connections for user {UserId}", staleConnections.Count, userId);
             }
 
+            // Get username from claims (try common claim types)
+            var username = Context.User?.Identity?.Name
+                ?? Context.User?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                ?? Context.User?.FindFirst("name")?.Value
+                ?? Context.User?.FindFirst("preferred_username")?.Value;
+
             // Add the new connection
             GetDbSet().Add(new UserConnection
             {
                 ConnectionId = connectionId,
                 UserId = userId,
+                Username = username,
                 ConnectedAt = DateTime.UtcNow
             });
 
