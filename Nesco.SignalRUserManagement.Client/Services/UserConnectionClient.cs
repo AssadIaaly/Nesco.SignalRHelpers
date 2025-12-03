@@ -220,9 +220,12 @@ public class UserConnectionClient : IAsyncDisposable
 
     private void RegisterMethodInvocationHandler()
     {
+        _logger.LogInformation("RegisterMethodInvocationHandler called, _methodExecutor is {Status}",
+            _methodExecutor == null ? "NULL" : "available");
+
         if (_methodExecutor == null)
         {
-            _logger.LogDebug("No IMethodExecutor registered, method invocation handling disabled");
+            _logger.LogWarning("No IMethodExecutor registered, method invocation handling disabled");
             return;
         }
 
