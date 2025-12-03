@@ -1,9 +1,7 @@
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Nesco.SignalRUserManagement.Server.Authorization.Extensions;
 using Nesco.SignalRUserManagement.Server.Extensions;
 using UserManagementAndControl.Server.Components;
@@ -42,40 +40,10 @@ builder.Services.AddAuthentication(options =>
     })
     .AddIdentityCookies();
 
-// Add JWT Bearer Authentication for API endpoints and SignalR
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
-var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "UserManagementAndControl";
-var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "UserManagementAndControl";
-
+// Add JWT Bearer authentication for API/SignalR
 builder.Services.AddAuthentication()
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-        };
+    .AddSignalRJwtBearer(builder.Configuration);
 
-        // Allow JWT token from query string for SignalR
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
-                {
-                    context.Token = accessToken;
-                }
-                return Task.CompletedTask;
-            }
-        };
-    });
 builder.Services.AddAuthorization();
 
 // Add CORS for external clients (WASM, ServerAsClient, and MAUI)
@@ -134,9 +102,6 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
-
-// Add custom SignalR UserIdProvider for JWT authentication
-builder.Services.AddSignalRUserIdProvider();
 
 // ============================================================================
 // SignalR User Management - Single call to add ALL services
