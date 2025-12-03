@@ -4,22 +4,23 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using UserManagementAndControl.Server.Data;
+using Nesco.SignalRUserManagement.Server.Authorization.Models;
 
-namespace UserManagementAndControl.Server.Controllers;
+namespace Nesco.SignalRUserManagement.Server.Authorization.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController : ControllerBase
+public class AuthController<TUser> : ControllerBase where TUser : IdentityUser
 {
-    private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly SignInManager<TUser> _signInManager;
+    private readonly UserManager<TUser> _userManager;
     private readonly IConfiguration _configuration;
 
     public AuthController(
-        SignInManager<ApplicationUser> signInManager,
-        UserManager<ApplicationUser> userManager,
+        SignInManager<TUser> signInManager,
+        UserManager<TUser> userManager,
         IConfiguration configuration)
     {
         _signInManager = signInManager;
@@ -96,7 +97,7 @@ public class AuthController : ControllerBase
         });
     }
 
-    private string GenerateJwtToken(ApplicationUser user)
+    private string GenerateJwtToken(TUser user)
     {
         var jwtKey = _configuration["Jwt:Key"] ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
@@ -110,25 +111,12 @@ public class AuthController : ControllerBase
         };
 
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"] ?? "UserManagementAndControl",
-            audience: _configuration["Jwt:Audience"] ?? "UserManagementAndControl",
+            issuer: _configuration["Jwt:Issuer"] ?? "SignalRUserManagement",
+            audience: _configuration["Jwt:Audience"] ?? "SignalRUserManagement",
             claims: claims,
             expires: DateTime.UtcNow.AddDays(7),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
-}
-
-public class LoginRequest
-{
-    public string Email { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-}
-
-public class LoginResponse
-{
-    public string UserId { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string? Token { get; set; }
 }

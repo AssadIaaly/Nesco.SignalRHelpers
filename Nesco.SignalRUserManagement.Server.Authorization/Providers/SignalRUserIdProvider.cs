@@ -1,14 +1,14 @@
 using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 
-namespace UserManagementAndControl.Server.Services;
+namespace Nesco.SignalRUserManagement.Server.Authorization.Providers;
 
 /// <summary>
 /// Custom user ID provider for SignalR that extracts user ID from JWT claims.
 /// When multiple auth schemes are active (JWT + Cookie), this provider
 /// prioritizes the JWT identity to ensure external clients are identified correctly.
 /// </summary>
-public class CustomUserIdProvider : IUserIdProvider
+public class SignalRUserIdProvider : IUserIdProvider
 {
     public string? GetUserId(HubConnectionContext connection)
     {

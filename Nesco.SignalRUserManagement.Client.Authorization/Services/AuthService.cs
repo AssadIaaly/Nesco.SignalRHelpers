@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
 using System.Security.Claims;
-using System.Text.Json;
 using Microsoft.JSInterop;
+using Nesco.SignalRUserManagement.Client.Authorization.Models;
 
-namespace UserManagementAndControl.Client.Services;
+namespace Nesco.SignalRUserManagement.Client.Authorization.Services;
 
 public class AuthService
 {
@@ -43,10 +43,10 @@ public class AuthService
                 {
                     _accessToken = result.Token;
                     await SetUserAsync(result.UserId, result.Email);
-                    
+
                     // Persist to localStorage
                     await SaveToLocalStorageAsync(result.Token, result.UserId, result.Email);
-                    
+
                     return new LoginResult { Success = true };
                 }
             }
@@ -64,10 +64,10 @@ public class AuthService
     {
         _accessToken = null;
         _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
-        
+
         // Clear from localStorage
         await ClearLocalStorageAsync();
-        
+
         AuthStateChanged?.Invoke();
     }
 
@@ -146,17 +146,4 @@ public class AuthService
         AuthStateChanged?.Invoke();
         return Task.CompletedTask;
     }
-}
-
-public class LoginResult
-{
-    public bool Success { get; set; }
-    public string? Error { get; set; }
-}
-
-public class LoginResponse
-{
-    public string UserId { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string? Token { get; set; }
 }

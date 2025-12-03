@@ -1,13 +1,13 @@
 using Microsoft.AspNetCore.Components.Authorization;
 
-namespace UserManagementAndControl.Client.Services;
+namespace Nesco.SignalRUserManagement.Client.Authorization.Services;
 
-public class CustomAuthStateProvider : AuthenticationStateProvider
+public class SignalRAuthStateProvider : AuthenticationStateProvider
 {
     private readonly AuthService _authService;
     private bool _hasCheckedAuth;
 
-    public CustomAuthStateProvider(AuthService authService)
+    public SignalRAuthStateProvider(AuthService authService)
     {
         _authService = authService;
         _authService.AuthStateChanged += OnAuthStateChanged;
