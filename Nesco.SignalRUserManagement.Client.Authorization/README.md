@@ -1,6 +1,6 @@
 # Nesco.SignalRUserManagement.Client.Authorization
 
-Client-side JWT authentication library for Blazor WebAssembly applications using SignalR User Management.
+Client-side JWT authentication library for Blazor WebAssembly and MAUI applications using SignalR User Management.
 
 ## Installation
 
@@ -27,11 +27,24 @@ builder.Services.AddScoped(sp => new HttpClient
 
 ### 2. Add Auth Services
 
+#### Blazor WebAssembly (Default - uses localStorage)
+
 ```csharp
 using Nesco.SignalRUserManagement.Client.Authorization.Extensions;
 
-// Add authentication services
+// Add authentication services (uses localStorage by default)
 builder.Services.AddSignalRClientAuth();
+```
+
+#### MAUI or Custom Storage
+
+For MAUI apps or other platforms, implement `IAuthTokenStorage` and register it:
+
+```csharp
+using Nesco.SignalRUserManagement.Client.Authorization.Extensions;
+
+// Add authentication services with custom storage
+builder.Services.AddSignalRClientAuth<PreferencesAuthTokenStorage>();
 ```
 
 ### 3. Configure App.razor
@@ -53,6 +66,107 @@ Wrap your app with `CascadingAuthenticationState`:
         </NotFound>
     </Router>
 </CascadingAuthenticationState>
+```
+
+## Custom Token Storage
+
+The library uses an `IAuthTokenStorage` interface for persisting authentication data. This allows you to implement custom storage mechanisms for different platforms.
+
+### IAuthTokenStorage Interface
+
+```csharp
+public interface IAuthTokenStorage
+{
+    Task<string?> GetTokenAsync();
+    Task<string?> GetUserIdAsync();
+    Task<string?> GetEmailAsync();
+    Task SaveAsync(string? token, string userId, string email);
+    Task ClearAsync();
+}
+```
+
+### Built-in Implementation
+
+- **`LocalStorageAuthTokenStorage`** - Default for Blazor WebAssembly, uses browser localStorage via JSInterop
+
+### MAUI Example (using Preferences)
+
+```csharp
+using Nesco.SignalRUserManagement.Client.Authorization.Services;
+
+public class PreferencesAuthTokenStorage : IAuthTokenStorage
+{
+    private const string TokenKey = "authToken";
+    private const string UserIdKey = "userId";
+    private const string EmailKey = "userEmail";
+
+    public Task<string?> GetTokenAsync() =>
+        Task.FromResult(Preferences.Default.Get<string?>(TokenKey, null));
+
+    public Task<string?> GetUserIdAsync() =>
+        Task.FromResult(Preferences.Default.Get<string?>(UserIdKey, null));
+
+    public Task<string?> GetEmailAsync() =>
+        Task.FromResult(Preferences.Default.Get<string?>(EmailKey, null));
+
+    public Task SaveAsync(string? token, string userId, string email)
+    {
+        Preferences.Default.Set(TokenKey, token ?? "");
+        Preferences.Default.Set(UserIdKey, userId);
+        Preferences.Default.Set(EmailKey, email);
+        return Task.CompletedTask;
+    }
+
+    public Task ClearAsync()
+    {
+        Preferences.Default.Remove(TokenKey);
+        Preferences.Default.Remove(UserIdKey);
+        Preferences.Default.Remove(EmailKey);
+        return Task.CompletedTask;
+    }
+}
+```
+
+Then register it in `MauiProgram.cs`:
+
+```csharp
+builder.Services.AddSignalRClientAuth<PreferencesAuthTokenStorage>();
+```
+
+### SecureStorage Example (for sensitive data)
+
+```csharp
+public class SecureStorageAuthTokenStorage : IAuthTokenStorage
+{
+    private const string TokenKey = "authToken";
+    private const string UserIdKey = "userId";
+    private const string EmailKey = "userEmail";
+
+    public async Task<string?> GetTokenAsync() =>
+        await SecureStorage.Default.GetAsync(TokenKey);
+
+    public async Task<string?> GetUserIdAsync() =>
+        await SecureStorage.Default.GetAsync(UserIdKey);
+
+    public async Task<string?> GetEmailAsync() =>
+        await SecureStorage.Default.GetAsync(EmailKey);
+
+    public async Task SaveAsync(string? token, string userId, string email)
+    {
+        if (!string.IsNullOrEmpty(token))
+            await SecureStorage.Default.SetAsync(TokenKey, token);
+        await SecureStorage.Default.SetAsync(UserIdKey, userId);
+        await SecureStorage.Default.SetAsync(EmailKey, email);
+    }
+
+    public Task ClearAsync()
+    {
+        SecureStorage.Default.Remove(TokenKey);
+        SecureStorage.Default.Remove(UserIdKey);
+        SecureStorage.Default.Remove(EmailKey);
+        return Task.CompletedTask;
+    }
+}
 ```
 
 ## Usage
@@ -170,7 +284,7 @@ await connectionClient.StartAsync(
 |--------|---------|-------------|
 | `LoginAsync(email, password)` | `Task<LoginResult>` | Authenticate with email and password |
 | `LogoutAsync()` | `Task` | Clear authentication state |
-| `CheckAuthAsync()` | `Task<bool>` | Initialize from localStorage and check auth status |
+| `CheckAuthAsync()` | `Task<bool>` | Initialize from storage and check auth status |
 
 | Event | Description |
 |-------|-------------|
@@ -183,9 +297,21 @@ await connectionClient.StartAsync(
 | `Success` | `bool` | Whether login succeeded |
 | `Error` | `string?` | Error message if login failed |
 
+### IAuthTokenStorage
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `GetTokenAsync()` | `Task<string?>` | Get stored token |
+| `GetUserIdAsync()` | `Task<string?>` | Get stored user ID |
+| `GetEmailAsync()` | `Task<string?>` | Get stored email |
+| `SaveAsync(token, userId, email)` | `Task` | Save auth data |
+| `ClearAsync()` | `Task` | Clear all auth data |
+
 ## Features
 
-- JWT token storage in localStorage (persists across page reloads)
+- JWT token storage with pluggable storage backends
+- Default localStorage support for Blazor WebAssembly
+- Easy to implement custom storage for MAUI (Preferences, SecureStorage)
 - Automatic token restoration on app startup
 - Integration with Blazor's `AuthenticationStateProvider`
 - Works with `AuthorizeView` and `[Authorize]` attributes

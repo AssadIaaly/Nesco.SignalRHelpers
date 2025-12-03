@@ -1,21 +1,21 @@
 using System.Net.Http.Json;
 using System.Security.Claims;
-using Microsoft.JSInterop;
 using Nesco.SignalRUserManagement.Client.Authorization.Models;
 
 namespace Nesco.SignalRUserManagement.Client.Authorization.Services;
 
+/// <summary>
+/// Service for handling authentication operations.
+/// Uses <see cref="IAuthTokenStorage"/> for persisting auth data, allowing different storage mechanisms
+/// (localStorage for Blazor WASM, Preferences for MAUI, etc.).
+/// </summary>
 public class AuthService
 {
     private readonly HttpClient _httpClient;
-    private readonly IJSRuntime _jsRuntime;
+    private readonly IAuthTokenStorage _tokenStorage;
     private ClaimsPrincipal _currentUser = new(new ClaimsIdentity());
     private string? _accessToken;
     private bool _initialized;
-
-    private const string TokenKey = "authToken";
-    private const string UserIdKey = "userId";
-    private const string EmailKey = "userEmail";
 
     public event Action? AuthStateChanged;
 
@@ -24,10 +24,10 @@ public class AuthService
     public string? AccessToken => _accessToken;
     public string? UserId => _currentUser.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-    public AuthService(HttpClient httpClient, IJSRuntime jsRuntime)
+    public AuthService(HttpClient httpClient, IAuthTokenStorage tokenStorage)
     {
         _httpClient = httpClient;
-        _jsRuntime = jsRuntime;
+        _tokenStorage = tokenStorage;
     }
 
     public async Task<LoginResult> LoginAsync(string email, string password)
@@ -44,8 +44,8 @@ public class AuthService
                     _accessToken = result.Token;
                     await SetUserAsync(result.UserId, result.Email);
 
-                    // Persist to localStorage
-                    await SaveToLocalStorageAsync(result.Token, result.UserId, result.Email);
+                    // Persist to storage
+                    await _tokenStorage.SaveAsync(result.Token, result.UserId, result.Email);
 
                     return new LoginResult { Success = true };
                 }
@@ -65,18 +65,18 @@ public class AuthService
         _accessToken = null;
         _currentUser = new ClaimsPrincipal(new ClaimsIdentity());
 
-        // Clear from localStorage
-        await ClearLocalStorageAsync();
+        // Clear from storage
+        await _tokenStorage.ClearAsync();
 
         AuthStateChanged?.Invoke();
     }
 
     public async Task<bool> CheckAuthAsync()
     {
-        // Initialize from localStorage on first check
+        // Initialize from storage on first check
         if (!_initialized)
         {
-            await InitializeFromLocalStorageAsync();
+            await InitializeFromStorageAsync();
             _initialized = true;
         }
 
@@ -85,13 +85,13 @@ public class AuthService
         return IsAuthenticated;
     }
 
-    private async Task InitializeFromLocalStorageAsync()
+    private async Task InitializeFromStorageAsync()
     {
         try
         {
-            var token = await _jsRuntime.InvokeAsync<string?>("localStorage.getItem", TokenKey);
-            var userId = await _jsRuntime.InvokeAsync<string?>("localStorage.getItem", UserIdKey);
-            var email = await _jsRuntime.InvokeAsync<string?>("localStorage.getItem", EmailKey);
+            var token = await _tokenStorage.GetTokenAsync();
+            var userId = await _tokenStorage.GetUserIdAsync();
+            var email = await _tokenStorage.GetEmailAsync();
 
             if (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(email))
             {
@@ -99,37 +99,9 @@ public class AuthService
                 await SetUserAsync(userId, email);
             }
         }
-        catch (Exception)
+        catch
         {
-            // If localStorage is not available or throws an error, just continue without persisted auth
-        }
-    }
-
-    private async Task SaveToLocalStorageAsync(string? token, string userId, string email)
-    {
-        try
-        {
-            await _jsRuntime.InvokeVoidAsync("localStorage.setItem", TokenKey, token ?? "");
-            await _jsRuntime.InvokeVoidAsync("localStorage.setItem", UserIdKey, userId);
-            await _jsRuntime.InvokeVoidAsync("localStorage.setItem", EmailKey, email);
-        }
-        catch (Exception)
-        {
-            // If localStorage is not available, just continue without persistence
-        }
-    }
-
-    private async Task ClearLocalStorageAsync()
-    {
-        try
-        {
-            await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", TokenKey);
-            await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", UserIdKey);
-            await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", EmailKey);
-        }
-        catch (Exception)
-        {
-            // If localStorage is not available, just continue
+            // If storage is not available or throws an error, continue without persisted auth
         }
     }
 
