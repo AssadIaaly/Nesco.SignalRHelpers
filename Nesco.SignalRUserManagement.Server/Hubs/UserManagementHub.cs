@@ -56,11 +56,61 @@ public class UserManagementHub<TDbContext> : Hub where TDbContext : DbContext
                 _logger.LogDebug("Removed {Count} stale connections for user {UserId}", staleConnections.Count, userId);
             }
 
-            // Get username from claims (try common claim types)
-            var username = Context.User?.Identity?.Name
-                ?? Context.User?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
-                ?? Context.User?.FindFirst("name")?.Value
-                ?? Context.User?.FindFirst("preferred_username")?.Value;
+            // DEBUG: Log all identities and their claims to diagnose auth issues
+            if (Context.User?.Identities != null)
+            {
+                _logger.LogInformation("=== DEBUG: User Identities for connection {ConnectionId} ===", connectionId);
+                var identityIndex = 0;
+                foreach (var identity in Context.User.Identities)
+                {
+                    _logger.LogInformation("Identity[{Index}]: AuthType={AuthType}, IsAuthenticated={IsAuth}, Name={Name}",
+                        identityIndex, identity.AuthenticationType ?? "(null)", identity.IsAuthenticated, identity.Name ?? "(null)");
+
+                    foreach (var claim in identity.Claims.Take(10)) // Limit to first 10 claims
+                    {
+                        _logger.LogInformation("  Claim: {Type} = {Value}", claim.Type, claim.Value);
+                    }
+                    identityIndex++;
+                }
+                _logger.LogInformation("=== END DEBUG ===");
+            }
+
+            // Get username from claims
+            // When multiple auth schemes are used (JWT + Cookie), we need to find the correct identity
+            // for this specific connection. JWT clients will have a Bearer identity.
+            string? username = null;
+
+            // First, try to get username from JWT/Bearer identity (for external clients)
+            var jwtIdentity = Context.User?.Identities?.FirstOrDefault(i =>
+                i.IsAuthenticated &&
+                (i.AuthenticationType == "Bearer" ||
+                 i.AuthenticationType == "AuthenticationTypes.Federation"));
+
+            _logger.LogInformation("JWT Identity found: {Found}, AuthType: {AuthType}",
+                jwtIdentity != null, jwtIdentity?.AuthenticationType ?? "(none)");
+
+            if (jwtIdentity != null)
+            {
+                username = jwtIdentity.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                    ?? jwtIdentity.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                    ?? jwtIdentity.FindFirst("name")?.Value
+                    ?? jwtIdentity.FindFirst("email")?.Value;
+
+                _logger.LogInformation("Username from JWT identity: {Username}", username ?? "(null)");
+            }
+
+            // Fall back to default identity claims if no JWT identity or no username found
+            if (string.IsNullOrEmpty(username))
+            {
+                username = Context.User?.Identity?.Name
+                    ?? Context.User?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                    ?? Context.User?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                    ?? Context.User?.FindFirst("name")?.Value
+                    ?? Context.User?.FindFirst("email")?.Value
+                    ?? Context.User?.FindFirst("preferred_username")?.Value;
+
+                _logger.LogInformation("Username from fallback: {Username}", username ?? "(null)");
+            }
 
             // Add the new connection
             GetDbSet().Add(new UserConnection

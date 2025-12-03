@@ -140,8 +140,9 @@ builder.Services.AddSignalRUserIdProvider();
 
 // ============================================================================
 // SignalR User Management - Single call to add ALL services
+// Using the <THub, TDbContext> overload since we have a custom AppHub
 // ============================================================================
-builder.Services.AddSignalRUserManagement<ApplicationDbContext>(options =>
+builder.Services.AddSignalRUserManagement<AppHub, ApplicationDbContext>(options =>
 {
     options.RequestTimeoutSeconds = 30;
     options.MaxConcurrentRequests = 20;
