@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Nesco.SignalRUserManagement.Client.Authorization.Extensions;
 using Nesco.SignalRUserManagement.Client.Extensions;
 using UserManagementAndControl.MAUI.Services;
 
@@ -7,28 +8,16 @@ namespace UserManagementAndControl.MAUI;
 public static class MauiProgram
 {
     // ==========================================================================
-    // Server API base URL configuration
+    // Server URL configuration
     // ==========================================================================
-    // IMPORTANT: For Android physical devices, you MUST use your machine's
-    // actual IP address (e.g., "http://192.168.1.100:5000")
+    // Set this to your server's address. Examples:
+    // - "http://localhost:5000"        - For Windows/Mac desktop
+    // - "http://192.168.1.100:5000"    - For mobile devices (use server's IP)
     //
-    // To find your IP:
-    // - Windows: Run "ipconfig" in cmd, look for IPv4 Address
-    // - Make sure your phone is on the same WiFi network as your dev machine
-    // - Make sure the server is listening on 0.0.0.0 or the specific IP
+    // To find your server's IP on Windows: Run "ipconfig" in cmd
+    // Make sure mobile devices are on the same network as the server
     // ==========================================================================
-
-    // TODO: Change this to your machine's IP for physical Android devices
-    private const string DevMachineIp = "192.168.1.100"; // <-- UPDATE THIS!
-
-#if ANDROID
-    // For Android Emulator use 10.0.2.2, for physical device use DevMachineIp
-    // Toggle between these as needed:
-    private const string ServerUrl = "http://10.0.2.2:5000";           // Emulator
-    // private const string ServerUrl = $"http://{DevMachineIp}:5000"; // Physical device
-#else
-    private const string ServerUrl = "http://localhost:5000";
-#endif
+    private const string ServerUrl = "http://192.168.1.5:5000";
 
     public static MauiApp CreateMauiApp()
     {
@@ -51,8 +40,8 @@ public static class MauiProgram
             BaseAddress = new Uri(ServerUrl)
         });
 
-        // Add authentication service
-        builder.Services.AddSingleton<AuthService>();
+        // Add authentication services with MAUI Preferences storage
+        builder.Services.AddSignalRClientAuth<PreferencesAuthTokenStorage>();
 
         // Add method invocation logger
         builder.Services.AddSingleton<MethodInvocationLogger>();

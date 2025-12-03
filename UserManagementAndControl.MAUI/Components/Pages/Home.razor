@@ -1,7 +1,9 @@
-﻿@page "/"
+@page "/"
 @inject AuthService AuthService
 @inject UserConnectionClient ConnectionClient
 @inject MethodInvocationLogger InvocationLogger
+@inject NavigationManager Navigation
+@inject HttpClient HttpClient
 @implements IDisposable
 
 <style>
@@ -19,9 +21,7 @@
     .btn-primary { background-color: #0d6efd; color: white; }
     .btn-outline-danger { background-color: transparent; border: 1px solid #dc3545; color: #dc3545; }
     .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
-    .form-control { display: block; width: 100%; padding: 0.375rem 0.75rem; font-size: 1rem; border: 1px solid #ced4da; border-radius: 0.25rem; margin-bottom: 0.5rem; }
     .alert { padding: 1rem; margin-bottom: 1rem; border-radius: 0.25rem; }
-    .alert-danger { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
     .alert-info { background-color: #cff4fc; color: #055160; border: 1px solid #b6effb; }
     .text-muted { color: #6c757d; }
     .text-primary { color: #0d6efd; }
@@ -39,31 +39,8 @@
 
 @if (!_isAuthenticated)
 {
-    <div style="max-width: 400px; margin: 2rem auto;">
-        <div class="card">
-            <div class="card-header" style="background-color: #0d6efd; color: white;">
-                Login to SignalR Client
-            </div>
-            <div class="card-body">
-                <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin">
-                    <div style="margin-bottom: 1rem;">
-                        <label>Email</label>
-                        <InputText class="form-control" @bind-Value="_loginModel.Email" placeholder="Enter email" />
-                    </div>
-                    <div style="margin-bottom: 1rem;">
-                        <label>Password</label>
-                        <InputText type="password" class="form-control" @bind-Value="_loginModel.Password" placeholder="Enter password" />
-                    </div>
-                    @if (!string.IsNullOrEmpty(_loginError))
-                    {
-                        <div class="alert alert-danger">@_loginError</div>
-                    }
-                    <button type="submit" class="btn btn-primary" style="width: 100%;" disabled="@_isLoggingIn">
-                        @(_isLoggingIn ? "Logging in..." : "Login")
-                    </button>
-                </EditForm>
-            </div>
-        </div>
+    <div class="text-center" style="margin-top: 2rem;">
+        <p>Checking authentication...</p>
     </div>
 }
 else
@@ -278,33 +255,32 @@ else
     private bool _isConnecting;
     private bool _isReconnecting;
     private string _connectionId = string.Empty;
-
-    // Hub URL - must match MauiProgram.cs ServerUrl
-    // For physical Android devices, update the IP address below
-    private const string DevMachineIp = "192.168.1.100"; // <-- UPDATE THIS to match MauiProgram.cs!
-
-#if ANDROID
-    // For Android Emulator use 10.0.2.2, for physical device use DevMachineIp
-    private string _hubUrl = "http://10.0.2.2:5000/hubs/usermanagement";        // Emulator
-    // private string _hubUrl = $"http://{DevMachineIp}:5000/hubs/usermanagement"; // Physical device
-#else
-    private string _hubUrl = "http://localhost:5000/hubs/usermanagement";
-#endif
+    private string _hubUrl = string.Empty;
 
     private Timer? _statusTimer;
     private Timer? _reconnectTimer;
     private IEnumerable<MethodInvocationLog> _methodLogs = Enumerable.Empty<MethodInvocationLog>();
     private string? _expandedMethod;
-    private LoginModel _loginModel = new();
-    private bool _isLoggingIn;
-    private string? _loginError;
 
     private void ToggleMethod(string methodName) => _expandedMethod = _expandedMethod == methodName ? null : methodName;
 
     protected override async Task OnInitializedAsync()
     {
+        // Derive hub URL from HttpClient base address (configured in MauiProgram.cs)
+        var baseUrl = HttpClient.BaseAddress?.ToString().TrimEnd('/') ?? "http://localhost:5000";
+        _hubUrl = $"{baseUrl}/hubs/usermanagement";
+
+        // Check authentication status from storage
+        await AuthService.CheckAuthAsync();
         _isAuthenticated = AuthService.IsAuthenticated;
-        if (_isAuthenticated) await InitializeAuthenticatedState();
+
+        if (!_isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await InitializeAuthenticatedState();
     }
 
     private async Task InitializeAuthenticatedState()
@@ -327,42 +303,6 @@ else
 
         if (!ConnectionClient.IsConnected && !string.IsNullOrEmpty(AuthService.AccessToken))
             await StartConnection();
-    }
-
-    private async Task HandleLogin()
-    {
-        _isLoggingIn = true;
-        _loginError = null;
-
-        Console.WriteLine($"=== HandleLogin called ===");
-        Console.WriteLine($"Email: {_loginModel.Email}");
-
-        try
-        {
-            var result = await AuthService.LoginAsync(_loginModel.Email, _loginModel.Password);
-            Console.WriteLine($"LoginAsync returned: {result}");
-
-            if (result)
-            {
-                _isAuthenticated = true;
-                await InitializeAuthenticatedState();
-            }
-            else
-            {
-                // Show detailed error from AuthService
-                _loginError = AuthService.LastError ?? "Invalid email or password";
-                Console.WriteLine($"Login failed with error: {_loginError}");
-            }
-        }
-        catch (Exception ex)
-        {
-            _loginError = $"Login failed: {ex.GetType().Name} - {ex.Message}";
-            Console.WriteLine($"Login exception: {ex}");
-        }
-        finally
-        {
-            _isLoggingIn = false;
-        }
     }
 
     private async Task StartConnection()
@@ -413,7 +353,8 @@ else
         _statusTimer?.Dispose();
         _reconnectTimer?.Dispose();
         _isAuthenticated = false;
-        _loginModel = new LoginModel();
+
+        Navigation.NavigateTo("/login");
     }
 
     private void UpdateConnectionState()
@@ -446,6 +387,4 @@ else
         ConnectionClient.Reconnected -= OnReconnected;
         InvocationLogger.OnLogAdded -= OnLogAdded;
     }
-
-    private class LoginModel { public string Email { get; set; } = string.Empty; public string Password { get; set; } = string.Empty; }
 }
