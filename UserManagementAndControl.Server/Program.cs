@@ -2,15 +2,14 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Nesco.SignalRUserManagement.Server.Authorization.Extensions;
 using Nesco.SignalRUserManagement.Server.Extensions;
 using UserManagementAndControl.Server.Components;
 using UserManagementAndControl.Server.Components.Account;
 using UserManagementAndControl.Server.Data;
 using UserManagementAndControl.Server.Hubs;
-using UserManagementAndControl.Server.Services;
 
 // =============================================================================
 // SignalR User Management - Simplified API
@@ -137,7 +136,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
 // Add custom SignalR UserIdProvider for JWT authentication
-builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
+builder.Services.AddSignalRUserIdProvider();
 
 // ============================================================================
 // SignalR User Management - Single call to add ALL services

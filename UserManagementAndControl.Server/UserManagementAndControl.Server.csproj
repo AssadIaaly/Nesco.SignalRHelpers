@@ -18,6 +18,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Nesco.SignalRUserManagement.Server\Nesco.SignalRUserManagement.Server.csproj" />
+        <ProjectReference Include="..\Nesco.SignalRUserManagement.Server.Authorization\Nesco.SignalRUserManagement.Server.Authorization.csproj" />
     </ItemGroup>
 
 </Project>
