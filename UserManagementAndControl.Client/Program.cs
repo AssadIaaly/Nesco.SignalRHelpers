@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Nesco.SignalRUserManagement.Client.Authorization.Extensions;
+using Nesco.SignalRUserManagement.Client.Authorization.Services;
 using Nesco.SignalRUserManagement.Client.Extensions;
 using UserManagementAndControl.Client;
 using UserManagementAndControl.Client.Services;
@@ -32,10 +34,8 @@ builder.Services.AddScoped(sp => new HttpClient
 // Add logging
 builder.Logging.SetMinimumLevel(LogLevel.Debug);
 
-// Add authentication state provider
-builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider, CustomAuthStateProvider>();
-builder.Services.AddAuthorizationCore();
+// Add authentication services from the authorization library
+builder.Services.AddSignalRClientAuth();
 
 // Register the method invocation logger as a singleton for tracking method calls
 builder.Services.AddSingleton<MethodInvocationLogger>();
