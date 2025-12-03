@@ -111,8 +111,8 @@ public class AuthController<TUser> : ControllerBase where TUser : IdentityUser
         };
 
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"] ?? "SignalRUserManagement",
-            audience: _configuration["Jwt:Audience"] ?? "SignalRUserManagement",
+            issuer: _configuration["Jwt:Issuer"] ?? "UserManagementAndControl",
+            audience: _configuration["Jwt:Audience"] ?? "UserManagementAndControl",
             claims: claims,
             expires: DateTime.UtcNow.AddDays(7),
             signingCredentials: credentials);
