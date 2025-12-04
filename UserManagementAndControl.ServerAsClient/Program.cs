@@ -37,9 +37,10 @@ builder.Services.AddScoped(sp =>
     return factory.CreateClient("ServerApi");
 });
 
-// Add authentication services with in-memory storage (for Blazor Server)
-// Use Singleton lifetime to share auth state across the application
-builder.Services.AddSignalRClientAuth<InMemoryAuthTokenStorage>();
+// Add authentication services with protected session storage (for Blazor Server)
+// Use Scoped lifetime to match the Blazor circuit lifetime
+// Data persists across page refreshes but is cleared when browser tab closes
+builder.Services.AddSignalRClientAuth<ProtectedSessionAuthTokenStorage>();
 
 // Register the method invocation logger as a singleton for tracking method calls
 builder.Services.AddSingleton<MethodInvocationLogger>();
