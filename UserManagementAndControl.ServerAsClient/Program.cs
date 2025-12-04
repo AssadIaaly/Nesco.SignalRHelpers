@@ -1,3 +1,5 @@
+using Nesco.SignalRUserManagement.Client.Authorization.Extensions;
+using Nesco.SignalRUserManagement.Client.Authorization.Services;
 using Nesco.SignalRUserManagement.Client.Extensions;
 using UserManagementAndControl.ServerAsClient.Components;
 using UserManagementAndControl.ServerAsClient.Services;
@@ -28,16 +30,16 @@ builder.Services.AddHttpClient("ServerApi", client =>
     client.BaseAddress = new Uri(serverUrl);
 });
 
-// Register a default HttpClient for services that need it (like DefaultFileUploadService)
+// Register a default HttpClient for services that need it
 builder.Services.AddScoped(sp =>
 {
     var factory = sp.GetRequiredService<IHttpClientFactory>();
     return factory.CreateClient("ServerApi");
 });
 
-// Add authentication service as singleton to share state across the app
-// Uses IHttpClientFactory internally to create HttpClient instances
-builder.Services.AddSingleton<AuthService>();
+// Add authentication services with in-memory storage (for Blazor Server)
+// Use Singleton lifetime to share auth state across the application
+builder.Services.AddSignalRClientAuth<InMemoryAuthTokenStorage>();
 
 // Register the method invocation logger as a singleton for tracking method calls
 builder.Services.AddSingleton<MethodInvocationLogger>();

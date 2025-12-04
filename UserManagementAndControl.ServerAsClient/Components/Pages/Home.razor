@@ -558,7 +558,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Check authentication
+        // Check authentication from storage
+        await AuthService.CheckAuthAsync();
         _isAuthenticated = AuthService.IsAuthenticated;
         if (_isAuthenticated)
         {
@@ -603,15 +604,15 @@ else
 
         try
         {
-            var success = await AuthService.LoginAsync(_loginModel.Email, _loginModel.Password);
-            if (success)
+            var result = await AuthService.LoginAsync(_loginModel.Email, _loginModel.Password);
+            if (result.Success)
             {
                 _isAuthenticated = true;
                 await InitializeAuthenticatedState();
             }
             else
             {
-                _loginError = "Invalid email or password";
+                _loginError = result.Error ?? "Invalid email or password";
             }
         }
         catch (Exception ex)
