@@ -11,17 +11,31 @@ public class InMemoryConnectionTracker
     private readonly ConcurrentDictionary<string, ConnectionInfo> _connections = new();
 
     /// <summary>
+    /// Event raised when a connection is added or removed
+    /// </summary>
+    public event Action<ConnectionChangeEventArgs>? ConnectionsChanged;
+
+    /// <summary>
     /// Adds a connection for a user
     /// </summary>
     public void AddConnection(string connectionId, string userId, string? username = null)
     {
-        _connections[connectionId] = new ConnectionInfo
+        var info = new ConnectionInfo
         {
             ConnectionId = connectionId,
             UserId = userId,
             Username = username,
             ConnectedAt = DateTime.UtcNow
         };
+        _connections[connectionId] = info;
+
+        ConnectionsChanged?.Invoke(new ConnectionChangeEventArgs
+        {
+            ChangeType = ConnectionChangeType.Connected,
+            ConnectionId = connectionId,
+            UserId = userId,
+            Username = username
+        });
     }
 
     /// <summary>
@@ -29,7 +43,18 @@ public class InMemoryConnectionTracker
     /// </summary>
     public bool RemoveConnection(string connectionId)
     {
-        return _connections.TryRemove(connectionId, out _);
+        if (_connections.TryRemove(connectionId, out var info))
+        {
+            ConnectionsChanged?.Invoke(new ConnectionChangeEventArgs
+            {
+                ChangeType = ConnectionChangeType.Disconnected,
+                ConnectionId = connectionId,
+                UserId = info.UserId,
+                Username = info.Username
+            });
+            return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -128,4 +153,24 @@ public class UserConnectionGroup
     public string UserId { get; set; } = string.Empty;
     public string? Username { get; set; }
     public List<ConnectionInfo> Connections { get; set; } = new();
+}
+
+/// <summary>
+/// Event args for connection changes
+/// </summary>
+public class ConnectionChangeEventArgs
+{
+    public ConnectionChangeType ChangeType { get; set; }
+    public string ConnectionId { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public string? Username { get; set; }
+}
+
+/// <summary>
+/// Type of connection change
+/// </summary>
+public enum ConnectionChangeType
+{
+    Connected,
+    Disconnected
 }

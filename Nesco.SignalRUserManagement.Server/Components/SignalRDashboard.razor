@@ -2,6 +2,8 @@
 @using Nesco.SignalRUserManagement.Core.Models
 @using System.Text.Json
 @inject ISignalRUserManagementService ManagementService
+@inject InMemoryConnectionTracker ConnectionTracker
+@implements IDisposable
 
 <style>
     .btn-xs {
@@ -299,7 +301,25 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Subscribe to connection changes
+        ConnectionTracker.ConnectionsChanged += OnConnectionsChanged;
         await RefreshConnections();
+    }
+
+    private void OnConnectionsChanged(ConnectionChangeEventArgs args)
+    {
+        // Refresh the connections list when a connection changes
+        InvokeAsync(async () =>
+        {
+            _connectedUsers = await ManagementService.GetConnectedUsersAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        // Unsubscribe from connection changes to prevent memory leaks
+        ConnectionTracker.ConnectionsChanged -= OnConnectionsChanged;
     }
 
     private async Task RefreshConnections()
