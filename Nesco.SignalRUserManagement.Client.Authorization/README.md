@@ -36,6 +36,92 @@ using Nesco.SignalRUserManagement.Client.Authorization.Extensions;
 builder.Services.AddSignalRClientAuth();
 ```
 
+#### Blazor Server (uses ProtectedSessionStorage)
+
+For Blazor Server apps, use encrypted session storage:
+
+```csharp
+using Nesco.SignalRUserManagement.Client.Authorization.Extensions;
+
+// Add authentication services with protected session storage
+builder.Services.AddSignalRClientAuth<ProtectedSessionAuthTokenStorage>();
+```
+
+You'll need to implement `ProtectedSessionAuthTokenStorage`:
+
+```csharp
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+using Nesco.SignalRUserManagement.Client.Authorization.Services;
+
+public class ProtectedSessionAuthTokenStorage : IAuthTokenStorage
+{
+    private readonly ProtectedSessionStorage _sessionStorage;
+    private const string TokenKey = "SignalRAuth.Token";
+    private const string UserIdKey = "SignalRAuth.UserId";
+    private const string EmailKey = "SignalRAuth.Email";
+
+    public ProtectedSessionAuthTokenStorage(ProtectedSessionStorage sessionStorage)
+    {
+        _sessionStorage = sessionStorage;
+    }
+
+    public async Task<string?> GetTokenAsync()
+    {
+        try
+        {
+            var result = await _sessionStorage.GetAsync<string>(TokenKey);
+            return result.Success ? result.Value : null;
+        }
+        catch { return null; }
+    }
+
+    public async Task<string?> GetUserIdAsync()
+    {
+        try
+        {
+            var result = await _sessionStorage.GetAsync<string>(UserIdKey);
+            return result.Success ? result.Value : null;
+        }
+        catch { return null; }
+    }
+
+    public async Task<string?> GetEmailAsync()
+    {
+        try
+        {
+            var result = await _sessionStorage.GetAsync<string>(EmailKey);
+            return result.Success ? result.Value : null;
+        }
+        catch { return null; }
+    }
+
+    public async Task SaveAsync(string? token, string userId, string email)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(token))
+            {
+                await _sessionStorage.SetAsync(TokenKey, token);
+                await _sessionStorage.SetAsync(UserIdKey, userId);
+                await _sessionStorage.SetAsync(EmailKey, email);
+            }
+        }
+        catch { }
+    }
+
+    public async Task ClearAsync()
+    {
+        try
+        {
+            await _sessionStorage.DeleteAsync(TokenKey);
+            await _sessionStorage.DeleteAsync(UserIdKey);
+            await _sessionStorage.DeleteAsync(EmailKey);
+        }
+        catch { }
+    }
+}
+```
+
 #### MAUI or Custom Storage
 
 For MAUI apps or other platforms, implement `IAuthTokenStorage` and register it:
@@ -88,6 +174,7 @@ public interface IAuthTokenStorage
 ### Built-in Implementation
 
 - **`LocalStorageAuthTokenStorage`** - Default for Blazor WebAssembly, uses browser localStorage via JSInterop
+- **`ProtectedSessionAuthTokenStorage`** - For Blazor Server, uses encrypted session storage (see example above)
 
 ### MAUI Example (using Preferences)
 

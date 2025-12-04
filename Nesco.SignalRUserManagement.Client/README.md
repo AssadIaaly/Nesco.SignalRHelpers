@@ -102,11 +102,6 @@ builder.Services.AddScoped(sp => new HttpClient
     BaseAddress = new Uri(serverUrl)
 });
 
-// Add authentication
-builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
-builder.Services.AddAuthorizationCore();
-
 // Add SignalR User Management Client
 builder.Services.AddSignalRUserManagementClient<ClientMethodExecutor>(options =>
 {
@@ -120,7 +115,6 @@ await builder.Build().RunAsync();
 
 ```razor
 @inject UserConnectionClient ConnectionClient
-@inject AuthService AuthService
 @implements IDisposable
 
 <div>
@@ -132,11 +126,9 @@ await builder.Build().RunAsync();
     {
         ConnectionClient.ConnectionStatusChanged += OnConnectionChanged;
 
-        if (AuthService.IsAuthenticated && !ConnectionClient.IsConnected)
+        if (!ConnectionClient.IsConnected)
         {
-            await ConnectionClient.StartAsync(
-                "http://localhost:5000/hubs/usermanagement",
-                () => Task.FromResult(AuthService.AccessToken!));
+            await ConnectionClient.StartAsync("http://localhost:5000/hubs/usermanagement");
         }
     }
 
@@ -183,9 +175,6 @@ builder.Services.AddScoped(sp =>
     return factory.CreateClient("ServerApi");
 });
 
-// Add authentication service
-builder.Services.AddSingleton<AuthService>();
-
 // Add SignalR User Management Client with file upload
 builder.Services.AddSignalRUserManagementClient<ClientMethodExecutor>(options =>
 {
@@ -201,7 +190,6 @@ app.Run();
 
 - Use `IHttpClientFactory` for HTTP clients
 - Register a default `HttpClient` using the factory for `DefaultFileUploadService`
-- Services can be singleton since Blazor Server runs on the server
 
 ---
 
@@ -235,9 +223,6 @@ public static class MauiProgram
         {
             BaseAddress = new Uri(ServerUrl)
         });
-
-        // Add authentication service
-        builder.Services.AddSingleton<AuthService>();
 
         // Add SignalR User Management Client
         builder.Services.AddSignalRUserManagementClient<ClientMethodExecutor>(options =>
