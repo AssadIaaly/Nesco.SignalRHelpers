@@ -558,12 +558,28 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        // Subscribe to method completion event for handling server-initiated logout
+        ConnectionClient.MethodCompleted += OnMethodCompleted;
+
         // Check authentication from storage
         await AuthService.CheckAuthAsync();
         _isAuthenticated = AuthService.IsAuthenticated;
         if (_isAuthenticated)
         {
             await InitializeAuthenticatedState();
+        }
+    }
+
+    private void OnMethodCompleted(string methodName, bool success)
+    {
+        // Handle server-initiated logout after response is sent
+        if (methodName == "Logout")
+        {
+            InvokeAsync(async () =>
+            {
+                await HandleLogout();
+                StateHasChanged();
+            });
         }
     }
 
@@ -770,6 +786,7 @@ else
         ConnectionClient.ConnectionStatusChanged -= OnConnectionStatusChanged;
         ConnectionClient.Reconnecting -= OnReconnecting;
         ConnectionClient.Reconnected -= OnReconnected;
+        ConnectionClient.MethodCompleted -= OnMethodCompleted;
         InvocationLogger.OnLogAdded -= OnLogAdded;
     }
 
