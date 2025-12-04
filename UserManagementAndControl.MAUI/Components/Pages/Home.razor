@@ -266,6 +266,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        // Subscribe to method completion event for handling server-initiated logout
+        ConnectionClient.MethodCompleted += OnMethodCompleted;
+
         // Derive hub URL from HttpClient base address (configured in MauiProgram.cs)
         var baseUrl = HttpClient.BaseAddress?.ToString().TrimEnd('/') ?? "http://localhost:5000";
         _hubUrl = $"{baseUrl}/hubs/usermanagement";
@@ -281,6 +284,19 @@ else
         }
 
         await InitializeAuthenticatedState();
+    }
+
+    private void OnMethodCompleted(string methodName, bool success)
+    {
+        // Handle server-initiated logout after response is sent
+        if (methodName == "Logout")
+        {
+            InvokeAsync(async () =>
+            {
+                await HandleLogout();
+                StateHasChanged();
+            });
+        }
     }
 
     private async Task InitializeAuthenticatedState()
@@ -385,6 +401,7 @@ else
         ConnectionClient.ConnectionStatusChanged -= OnConnectionStatusChanged;
         ConnectionClient.Reconnecting -= OnReconnecting;
         ConnectionClient.Reconnected -= OnReconnected;
+        ConnectionClient.MethodCompleted -= OnMethodCompleted;
         InvocationLogger.OnLogAdded -= OnLogAdded;
     }
 }

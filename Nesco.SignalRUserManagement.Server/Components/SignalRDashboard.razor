@@ -79,8 +79,19 @@
                                     </td>
                                     <td>@user.LastConnect?.ToString("yyyy-MM-dd HH:mm:ss")</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => PingUser(user.UserId)" title="Ping this user">
+                                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => PingUser(user.UserId)" title="Ping this user">
                                             Ping
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger me-1" @onclick="() => LogoutUser(user.UserId)" disabled="@_loggingOutUsers.Contains(user.UserId)" title="Logout this user (all connections)">
+                                            @if (_loggingOutUsers.Contains(user.UserId))
+                                            {
+                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                                <span>Logging out...</span>
+                                            }
+                                            else
+                                            {
+                                                <span>Logout</span>
+                                            }
                                         </button>
                                         <button class="btn btn-sm btn-outline-secondary" @onclick="() => ToggleConnectionDetails(user.UserId)">
                                             @(_expandedUsers.Contains(user.UserId) ? "Hide" : "Show") Details
@@ -110,8 +121,18 @@
                                                             <td><small>@conn.UserAgent</small></td>
                                                             <td>@conn.ConnectedAt.ToString("HH:mm:ss")</td>
                                                             <td>
-                                                                <button class="btn btn-xs btn-outline-primary" @onclick="() => PingConnection(conn.ConnectionId)" title="Ping this specific connection">
+                                                                <button class="btn btn-xs btn-outline-primary me-1" @onclick="() => PingConnection(conn.ConnectionId)" title="Ping this specific connection">
                                                                     Ping
+                                                                </button>
+                                                                <button class="btn btn-xs btn-outline-danger" @onclick="() => LogoutConnection(conn.ConnectionId)" disabled="@_loggingOutConnections.Contains(conn.ConnectionId)" title="Logout this specific connection">
+                                                                    @if (_loggingOutConnections.Contains(conn.ConnectionId))
+                                                                    {
+                                                                        <span class="spinner-border spinner-border-sm"></span>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <span>Logout</span>
+                                                                    }
                                                                 </button>
                                                             </td>
                                                         </tr>
@@ -289,6 +310,8 @@
     private List<ConnectedUserInfo>? _connectedUsers;
     private HashSet<string> _expandedUsers = new();
     private HashSet<string> _expandedResponses = new();
+    private HashSet<string> _loggingOutUsers = new();
+    private HashSet<string> _loggingOutConnections = new();
 
     private string _methodName = "Ping";
     private string _targetType = "All";
@@ -379,6 +402,46 @@
         _target = connectionId;
         _parameters = "";
         await InvokeMethod();
+    }
+
+    private async Task LogoutUser(string userId)
+    {
+        _loggingOutUsers.Add(userId);
+        StateHasChanged();
+
+        try
+        {
+            _methodName = "Logout";
+            _targetType = "User";
+            _target = userId;
+            _parameters = "";
+            await InvokeMethod();
+        }
+        finally
+        {
+            _loggingOutUsers.Remove(userId);
+            StateHasChanged();
+        }
+    }
+
+    private async Task LogoutConnection(string connectionId)
+    {
+        _loggingOutConnections.Add(connectionId);
+        StateHasChanged();
+
+        try
+        {
+            _methodName = "Logout";
+            _targetType = "Connection";
+            _target = connectionId;
+            _parameters = "";
+            await InvokeMethod();
+        }
+        finally
+        {
+            _loggingOutConnections.Remove(connectionId);
+            StateHasChanged();
+        }
     }
 
     private string GetTargetLabel()

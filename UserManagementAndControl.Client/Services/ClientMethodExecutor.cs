@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Nesco.SignalRUserManagement.Client.Authorization.Services;
 using Nesco.SignalRUserManagement.Core.Interfaces;
 using Nesco.SignalRUserManagement.Core.Utilities;
 
@@ -11,14 +12,19 @@ public class ClientMethodExecutor : IMethodExecutor
 {
     private readonly ILogger<ClientMethodExecutor> _logger;
     private readonly MethodInvocationLogger _invocationLogger;
+    private readonly IServiceProvider _serviceProvider;
 
     // Event that UI components can subscribe to
     public event Action<string, object?>? OnMethodInvoked;
 
-    public ClientMethodExecutor(ILogger<ClientMethodExecutor> logger, MethodInvocationLogger invocationLogger)
+    public ClientMethodExecutor(
+        ILogger<ClientMethodExecutor> logger,
+        MethodInvocationLogger invocationLogger,
+        IServiceProvider serviceProvider)
     {
         _logger = logger;
         _invocationLogger = invocationLogger;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task<object?> ExecuteAsync(string methodName, object? parameter)
@@ -43,6 +49,7 @@ public class ClientMethodExecutor : IMethodExecutor
                 "GetClientInfo" => await HandleGetClientInfoAsync(),
                 "Calculate" => await HandleCalculateAsync(parameter),
                 "GetLargeData" => await HandleGetLargeDataAsync(parameter),
+                "Logout" => await HandleLogoutAsync(),
                 _ => throw new NotSupportedException($"Method '{methodName}' is not supported")
             };
 
@@ -99,6 +106,18 @@ public class ClientMethodExecutor : IMethodExecutor
             timestamp = DateTime.UtcNow,
             timezone = TimeZoneInfo.Local.DisplayName
         });
+    }
+
+    private async Task<object?> HandleLogoutAsync()
+    {
+        _logger.LogInformation("Logout request received from server");
+        using var scope = _serviceProvider.CreateScope();
+        var authService = scope.ServiceProvider.GetRequiredService<AuthService>();
+        await authService.LogoutAsync();
+
+        // Response is returned here, then UserConnectionClient.MethodCompleted event fires
+        // Home.razor subscribes to that event to handle UI logout/navigation
+        return new { loggedOut = true, timestamp = DateTime.UtcNow };
     }
 
     private Task<object?> HandleCalculateAsync(object? parameter)
