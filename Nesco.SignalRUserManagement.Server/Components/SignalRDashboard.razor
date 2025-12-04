@@ -2,6 +2,8 @@
 @using Nesco.SignalRUserManagement.Core.Models
 @using System.Text.Json
 @inject ISignalRUserManagementService ManagementService
+@inject InMemoryConnectionTracker ConnectionTracker
+@implements IDisposable
 
 <style>
     .btn-xs {
@@ -22,8 +24,16 @@
                         <button class="btn btn-success btn-sm me-2" @onclick="PingAllUsers" title="Ping all connected users">
                             Ping All
                         </button>
-                        <button class="btn btn-primary btn-sm" @onclick="RefreshConnections">
-                            Refresh
+                        <button class="btn btn-primary btn-sm" @onclick="RefreshConnections" disabled="@_isRefreshing">
+                            @if (_isRefreshing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>Refreshing...</span>
+                            }
+                            else
+                            {
+                                <span>Refresh</span>
+                            }
                         </button>
                     </div>
                 </div>
@@ -285,17 +295,47 @@
     private string _target = "";
     private string _parameters = "";
     private bool _isInvoking = false;
+    private bool _isRefreshing = false;
 
     private List<InvocationResult> _results = new();
 
     protected override async Task OnInitializedAsync()
     {
+        // Subscribe to connection changes
+        ConnectionTracker.ConnectionsChanged += OnConnectionsChanged;
         await RefreshConnections();
+    }
+
+    private void OnConnectionsChanged(ConnectionChangeEventArgs args)
+    {
+        // Refresh the connections list when a connection changes
+        InvokeAsync(async () =>
+        {
+            _connectedUsers = await ManagementService.GetConnectedUsersAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        // Unsubscribe from connection changes to prevent memory leaks
+        ConnectionTracker.ConnectionsChanged -= OnConnectionsChanged;
     }
 
     private async Task RefreshConnections()
     {
-        _connectedUsers = await ManagementService.GetConnectedUsersAsync();
+        _isRefreshing = true;
+        StateHasChanged();
+
+        try
+        {
+            _connectedUsers = await ManagementService.GetConnectedUsersAsync();
+        }
+        finally
+        {
+            _isRefreshing = false;
+            StateHasChanged();
+        }
     }
 
     private void ToggleConnectionDetails(string userId)

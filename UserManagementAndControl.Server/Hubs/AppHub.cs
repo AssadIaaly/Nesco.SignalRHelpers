@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Nesco.SignalRUserManagement.Core.Interfaces;
 using Nesco.SignalRUserManagement.Server.Hubs;
-using UserManagementAndControl.Server.Data;
+using Nesco.SignalRUserManagement.Server.Services;
 
 namespace UserManagementAndControl.Server.Hubs;
 
@@ -10,16 +10,16 @@ namespace UserManagementAndControl.Server.Hubs;
 /// Custom hub that extends UserManagementHub with application-specific methods.
 /// Clients can call these methods directly via the SignalR connection.
 /// </summary>
-public class AppHub : UserManagementHub<ApplicationDbContext>
+public class AppHub : UserManagementHub
 {
     private readonly ILogger<AppHub> _appLogger;
 
     public AppHub(
-        ApplicationDbContext dbContext,
-        ILogger<UserManagementHub<ApplicationDbContext>> logger,
+        InMemoryConnectionTracker tracker,
+        ILogger<UserManagementHub> logger,
         ILogger<AppHub> appLogger,
         IResponseManager? responseManager = null)
-        : base(dbContext, logger, responseManager)
+        : base(tracker, logger, responseManager)
     {
         _appLogger = appLogger;
     }

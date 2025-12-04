@@ -13,11 +13,11 @@ using UserManagementAndControl.Server.Hubs;
 // SignalR User Management - Simplified API
 // =============================================================================
 //
-// ONE call to add all services: AddSignalRUserManagement<T>()
-// ONE call to map the hub: MapSignalRUserManagement<T>()
+// ONE call to add all services: AddSignalRUserManagement() or AddSignalRUserManagement<THub>()
+// ONE call to map the hub: MapSignalRUserManagement() or MapSignalRUserManagement<THub>()
 //
 // The library includes:
-// - User connection tracking (database-backed)
+// - User connection tracking (in-memory - no database required)
 // - Method invocation on clients (communicator)
 // - Dashboard component: <SignalRDashboard />
 // =============================================================================
@@ -105,9 +105,10 @@ builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSe
 
 // ============================================================================
 // SignalR User Management - Single call to add ALL services
-// Using the <THub, TDbContext> overload since we have a custom AppHub
+// Using the <THub> overload since we have a custom AppHub
+// No database required - uses in-memory connection tracking
 // ============================================================================
-builder.Services.AddSignalRUserManagement<AppHub, ApplicationDbContext>(options =>
+builder.Services.AddSignalRUserManagement<AppHub>(options =>
 {
     options.RequestTimeoutSeconds = 30;
     options.MaxConcurrentRequests = 20;
@@ -159,7 +160,7 @@ app.MapControllers();
 // Map the SignalR User Management Hub with custom AppHub
 // AppHub extends UserManagementHub with additional methods like GetServerTime, Echo, etc.
 // ============================================================================
-app.MapSignalRUserManagement<AppHub, ApplicationDbContext>()
+app.MapSignalRUserManagement<AppHub>()
     .RequireAuthorization(policy =>
         policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, IdentityConstants.ApplicationScheme)
               .RequireAuthenticatedUser());
