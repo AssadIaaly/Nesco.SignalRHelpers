@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -9,27 +9,26 @@ using Nesco.SignalRUserManagement.Core.Interfaces;
 using Nesco.SignalRUserManagement.Core.Options;
 using Nesco.SignalRUserManagement.Core.Services;
 using Nesco.SignalRUserManagement.Server.Hubs;
-using Nesco.SignalRUserManagement.Server.Models;
 using Nesco.SignalRUserManagement.Server.Services;
 
 namespace Nesco.SignalRUserManagement.Server.Extensions;
 
 /// <summary>
-/// Extension methods for configuring SignalR User Management on the server
+/// Extension methods for configuring SignalR User Management on the server.
+/// No database required - uses in-memory connection tracking.
 /// </summary>
 public static class UserManagementServerExtensions
 {
     /// <summary>
     /// Adds all SignalR User Management services with a single call.
-    /// This is the recommended way to configure the library.
+    /// Uses in-memory connection tracking - no database required.
     /// </summary>
-    /// <typeparam name="TDbContext">DbContext with UserConnections DbSet that implements IUserConnectionDbContext</typeparam>
     /// <param name="services">Service collection</param>
     /// <param name="configure">Optional configuration</param>
     /// <example>
     /// <code>
     /// // In Program.cs - Add all services with one call
-    /// builder.Services.AddSignalRUserManagement&lt;ApplicationDbContext&gt;(options =>
+    /// builder.Services.AddSignalRUserManagement(options =>
     /// {
     ///     options.HubPath = "/hubs/usermanagement";
     ///     options.EnableCommunicator = true;
@@ -38,13 +37,12 @@ public static class UserManagementServerExtensions
     /// });
     ///
     /// // Map the hub with one call
-    /// app.MapSignalRUserManagement&lt;ApplicationDbContext&gt;();
+    /// app.MapSignalRUserManagement();
     /// </code>
     /// </example>
-    public static IServiceCollection AddSignalRUserManagement<TDbContext>(
+    public static IServiceCollection AddSignalRUserManagement(
         this IServiceCollection services,
         Action<SignalRUserManagementOptions>? configure = null)
-        where TDbContext : DbContext, IUserConnectionDbContext
     {
         var options = new SignalRUserManagementOptions();
         configure?.Invoke(options);
@@ -72,11 +70,11 @@ public static class UserManagementServerExtensions
             signalr.ClientTimeoutInterval = TimeSpan.FromSeconds(options.ClientTimeoutSeconds);
         });
 
-        // Register core user connection service
-        services.AddScoped<IUserConnectionService, UserConnectionService<UserManagementHub<TDbContext>, TDbContext>>();
+        // Register in-memory connection tracker (singleton)
+        services.TryAddSingleton<InMemoryConnectionTracker>();
 
-        // Register IUserConnectionDbContext
-        services.TryAddScoped<IUserConnectionDbContext>(sp => sp.GetRequiredService<TDbContext>());
+        // Register core user connection service
+        services.AddScoped<IUserConnectionService, UserConnectionService<UserManagementHub>>();
 
         // Add communicator if enabled
         if (options.EnableCommunicator)
@@ -103,14 +101,12 @@ public static class UserManagementServerExtensions
                 return new DefaultFileReaderService(logger, env?.WebRootPath);
             });
 
-            services.AddScoped<IUserCommunicatorService, UserCommunicatorService<UserManagementHub<TDbContext>>>();
+            services.AddScoped<IUserCommunicatorService, UserCommunicatorService<UserManagementHub>>();
         }
 
         // Add unified management service (dashboard support)
         if (options.EnableDashboard)
         {
-            // Note: IFileReaderService is already registered above when EnableCommunicator is true
-            // If dashboard is enabled but communicator is not, register file reader service here too
             if (!options.EnableCommunicator)
             {
                 services.TryAddSingleton<IFileReaderService>(sp =>
@@ -121,7 +117,7 @@ public static class UserManagementServerExtensions
                 });
             }
 
-            services.AddScoped<ISignalRUserManagementService, SignalRUserManagementService<TDbContext>>();
+            services.AddScoped<ISignalRUserManagementService, SignalRUserManagementService>();
         }
 
         return services;
@@ -131,37 +127,35 @@ public static class UserManagementServerExtensions
     /// Adds all SignalR User Management services with a custom hub type.
     /// Use this overload when you have a custom hub that inherits from UserManagementHub.
     /// </summary>
-    /// <typeparam name="THub">Custom hub type that inherits from UserManagementHub&lt;TDbContext&gt;</typeparam>
-    /// <typeparam name="TDbContext">DbContext with UserConnections DbSet that implements IUserConnectionDbContext</typeparam>
+    /// <typeparam name="THub">Custom hub type that inherits from UserManagementHub</typeparam>
     /// <param name="services">Service collection</param>
     /// <param name="configure">Optional configuration</param>
     /// <example>
     /// <code>
     /// // Create a custom hub with additional methods
-    /// public class AppHub : UserManagementHub&lt;ApplicationDbContext&gt;
+    /// public class AppHub : UserManagementHub
     /// {
-    ///     public AppHub(ApplicationDbContext db, ILogger&lt;UserManagementHub&lt;ApplicationDbContext&gt;&gt; logger,
-    ///         IResponseManager? responseManager = null) : base(db, logger, responseManager) { }
+    ///     public AppHub(InMemoryConnectionTracker tracker, ILogger&lt;UserManagementHub&gt; logger,
+    ///         IResponseManager? responseManager = null) : base(tracker, logger, responseManager) { }
     ///
     ///     public Task&lt;string&gt; GetServerTime() => Task.FromResult(DateTime.UtcNow.ToString("O"));
     /// }
     ///
     /// // In Program.cs - Add all services with custom hub type
-    /// builder.Services.AddSignalRUserManagement&lt;AppHub, ApplicationDbContext&gt;(options =>
+    /// builder.Services.AddSignalRUserManagement&lt;AppHub&gt;(options =>
     /// {
     ///     options.EnableCommunicator = true;
     ///     options.EnableDashboard = true;
     /// });
     ///
     /// // Map the custom hub
-    /// app.MapSignalRUserManagement&lt;AppHub, ApplicationDbContext&gt;();
+    /// app.MapSignalRUserManagement&lt;AppHub&gt;();
     /// </code>
     /// </example>
-    public static IServiceCollection AddSignalRUserManagement<THub, TDbContext>(
+    public static IServiceCollection AddSignalRUserManagement<THub>(
         this IServiceCollection services,
         Action<SignalRUserManagementOptions>? configure = null)
-        where THub : UserManagementHub<TDbContext>
-        where TDbContext : DbContext, IUserConnectionDbContext
+        where THub : UserManagementHub
     {
         var options = new SignalRUserManagementOptions();
         configure?.Invoke(options);
@@ -189,11 +183,11 @@ public static class UserManagementServerExtensions
             signalr.ClientTimeoutInterval = TimeSpan.FromSeconds(options.ClientTimeoutSeconds);
         });
 
-        // Register core user connection service with the custom hub type
-        services.AddScoped<IUserConnectionService, UserConnectionService<THub, TDbContext>>();
+        // Register in-memory connection tracker (singleton)
+        services.TryAddSingleton<InMemoryConnectionTracker>();
 
-        // Register IUserConnectionDbContext
-        services.TryAddScoped<IUserConnectionDbContext>(sp => sp.GetRequiredService<TDbContext>());
+        // Register core user connection service with the custom hub type
+        services.AddScoped<IUserConnectionService, UserConnectionService<THub>>();
 
         // Add communicator if enabled - uses the custom hub type for correct IHubContext routing
         if (options.EnableCommunicator)
@@ -227,8 +221,6 @@ public static class UserManagementServerExtensions
         // Add unified management service (dashboard support)
         if (options.EnableDashboard)
         {
-            // Note: IFileReaderService is already registered above when EnableCommunicator is true
-            // If dashboard is enabled but communicator is not, register file reader service here too
             if (!options.EnableCommunicator)
             {
                 services.TryAddSingleton<IFileReaderService>(sp =>
@@ -239,7 +231,7 @@ public static class UserManagementServerExtensions
                 });
             }
 
-            services.AddScoped<ISignalRUserManagementService, SignalRUserManagementService<TDbContext>>();
+            services.AddScoped<ISignalRUserManagementService, SignalRUserManagementService>();
         }
 
         return services;
@@ -248,16 +240,14 @@ public static class UserManagementServerExtensions
     /// <summary>
     /// Maps the SignalR User Management Hub. Uses the HubPath from options or the specified pattern.
     /// </summary>
-    /// <typeparam name="TDbContext">DbContext type</typeparam>
     /// <param name="endpoints">Endpoint route builder</param>
     /// <param name="pattern">Optional hub path override. If null, uses value from AddSignalRUserManagement options.</param>
-    public static HubEndpointConventionBuilder MapSignalRUserManagement<TDbContext>(
+    public static HubEndpointConventionBuilder MapSignalRUserManagement(
         this IEndpointRouteBuilder endpoints,
         string? pattern = null)
-        where TDbContext : DbContext
     {
         var finalPattern = pattern ?? "/hubs/usermanagement";
-        return endpoints.MapHub<UserManagementHub<TDbContext>>(finalPattern);
+        return endpoints.MapHub<UserManagementHub>(finalPattern);
     }
 
     /// <summary>
@@ -265,109 +255,29 @@ public static class UserManagementServerExtensions
     /// Use this when you need to add custom methods to the hub.
     /// </summary>
     /// <typeparam name="THub">Custom hub type that inherits from UserManagementHub</typeparam>
-    /// <typeparam name="TDbContext">DbContext type</typeparam>
     /// <param name="endpoints">Endpoint route builder</param>
     /// <param name="pattern">Optional hub path override. Defaults to /hubs/usermanagement.</param>
     /// <example>
     /// <code>
     /// // Create a custom hub with additional methods
-    /// public class AppHub : UserManagementHub&lt;ApplicationDbContext&gt;
+    /// public class AppHub : UserManagementHub
     /// {
-    ///     public AppHub(ApplicationDbContext db, ILogger&lt;UserManagementHub&lt;ApplicationDbContext&gt;&gt; logger,
-    ///         IResponseManager? responseManager = null) : base(db, logger, responseManager) { }
+    ///     public AppHub(InMemoryConnectionTracker tracker, ILogger&lt;UserManagementHub&gt; logger,
+    ///         IResponseManager? responseManager = null) : base(tracker, logger, responseManager) { }
     ///
     ///     public Task&lt;string&gt; GetServerTime() => Task.FromResult(DateTime.UtcNow.ToString("O"));
     /// }
     ///
     /// // Map the custom hub
-    /// app.MapSignalRUserManagement&lt;AppHub, ApplicationDbContext&gt;();
+    /// app.MapSignalRUserManagement&lt;AppHub&gt;();
     /// </code>
     /// </example>
-    public static HubEndpointConventionBuilder MapSignalRUserManagement<THub, TDbContext>(
+    public static HubEndpointConventionBuilder MapSignalRUserManagement<THub>(
         this IEndpointRouteBuilder endpoints,
         string? pattern = null)
-        where THub : UserManagementHub<TDbContext>
-        where TDbContext : DbContext
+        where THub : Hub
     {
         var finalPattern = pattern ?? "/hubs/usermanagement";
         return endpoints.MapHub<THub>(finalPattern);
     }
-
-    #region Legacy Methods (for backward compatibility)
-
-    /// <summary>
-    /// Adds SignalR User Management services.
-    /// Consider using AddSignalRUserManagement instead for simpler configuration.
-    /// </summary>
-    /// <typeparam name="TDbContext">DbContext with UserConnections DbSet that implements IUserConnectionDbContext</typeparam>
-    [Obsolete("Use AddSignalRUserManagement<TDbContext>() instead for simpler configuration.")]
-    public static IServiceCollection AddUserManagement<TDbContext>(
-        this IServiceCollection services,
-        Action<UserManagementOptions>? configure = null)
-        where TDbContext : DbContext, IUserConnectionDbContext
-    {
-        var options = new UserManagementOptions();
-        configure?.Invoke(options);
-
-        services.Configure<UserManagementOptions>(opt =>
-        {
-            opt.KeepAliveIntervalSeconds = options.KeepAliveIntervalSeconds;
-            opt.ClientTimeoutSeconds = options.ClientTimeoutSeconds;
-            opt.ReconnectDelaysSeconds = options.ReconnectDelaysSeconds;
-        });
-
-        services.AddSignalR(signalr =>
-        {
-            signalr.KeepAliveInterval = TimeSpan.FromSeconds(options.KeepAliveIntervalSeconds);
-            signalr.ClientTimeoutInterval = TimeSpan.FromSeconds(options.ClientTimeoutSeconds);
-        });
-
-        services.AddScoped<IUserConnectionService, UserConnectionService<UserManagementHub<TDbContext>, TDbContext>>();
-        services.TryAddScoped<IUserConnectionDbContext>(sp => sp.GetRequiredService<TDbContext>());
-
-        return services;
-    }
-
-    /// <summary>
-    /// Maps the UserManagementHub to the specified path.
-    /// Consider using MapSignalRUserManagement instead.
-    /// </summary>
-    [Obsolete("Use MapSignalRUserManagement<TDbContext>() instead.")]
-    public static HubEndpointConventionBuilder MapUserManagementHub<TDbContext>(
-        this IEndpointRouteBuilder endpoints,
-        string pattern = "/hubs/usermanagement")
-        where TDbContext : DbContext
-    {
-        return endpoints.MapHub<UserManagementHub<TDbContext>>(pattern);
-    }
-
-    /// <summary>
-    /// Adds method invocation (communicator) functionality.
-    /// Consider using AddSignalRUserManagement with EnableCommunicator = true instead.
-    /// </summary>
-    [Obsolete("Use AddSignalRUserManagement<TDbContext>(opt => opt.EnableCommunicator = true) instead.")]
-    public static IServiceCollection AddUserManagementCommunicator<TDbContext>(
-        this IServiceCollection services,
-        Action<CommunicatorOptions>? configure = null)
-        where TDbContext : DbContext, IUserConnectionDbContext
-    {
-        var options = new CommunicatorOptions();
-        configure?.Invoke(options);
-
-        services.Configure<CommunicatorOptions>(opt =>
-        {
-            opt.MaxConcurrentRequests = options.MaxConcurrentRequests;
-            opt.RequestTimeoutSeconds = options.RequestTimeoutSeconds;
-            opt.SemaphoreTimeoutSeconds = options.SemaphoreTimeoutSeconds;
-            opt.MaxDirectDataSizeBytes = options.MaxDirectDataSizeBytes;
-            opt.AutoDeleteTempFiles = options.AutoDeleteTempFiles;
-        });
-
-        services.TryAddSingleton<IResponseManager, ResponseManager>();
-        services.AddScoped<IUserCommunicatorService, UserCommunicatorService<UserManagementHub<TDbContext>>>();
-
-        return services;
-    }
-
-    #endregion
 }

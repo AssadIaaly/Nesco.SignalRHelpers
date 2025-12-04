@@ -1,10 +1,8 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nesco.SignalRUserManagement.Core.Interfaces;
 using Nesco.SignalRUserManagement.Core.Models;
 using Nesco.SignalRUserManagement.Core.Options;
-using Nesco.SignalRUserManagement.Server.Models;
 using System.Text.Json;
 
 namespace Nesco.SignalRUserManagement.Server.Services;
@@ -12,27 +10,27 @@ namespace Nesco.SignalRUserManagement.Server.Services;
 /// <summary>
 /// Default implementation of ISignalRUserManagementService that coordinates
 /// user connection management and method invocation functionality.
+/// Uses in-memory connection tracking - no database required.
 /// </summary>
-public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementService
-    where TDbContext : DbContext, IUserConnectionDbContext
+public class SignalRUserManagementService : ISignalRUserManagementService
 {
     private readonly IUserCommunicatorService? _communicator;
     private readonly IUserConnectionService _userManagement;
-    private readonly TDbContext _context;
+    private readonly InMemoryConnectionTracker _tracker;
     private readonly IFileReaderService? _fileReaderService;
     private readonly CommunicatorOptions _options;
-    private readonly ILogger<SignalRUserManagementService<TDbContext>> _logger;
+    private readonly ILogger<SignalRUserManagementService> _logger;
 
     public SignalRUserManagementService(
         IUserConnectionService userManagement,
-        TDbContext context,
-        ILogger<SignalRUserManagementService<TDbContext>> logger,
+        InMemoryConnectionTracker tracker,
+        ILogger<SignalRUserManagementService> logger,
         IOptions<CommunicatorOptions>? options = null,
         IUserCommunicatorService? communicator = null,
         IFileReaderService? fileReaderService = null)
     {
         _userManagement = userManagement;
-        _context = context;
+        _tracker = tracker;
         _logger = logger;
         _options = options?.Value ?? new CommunicatorOptions();
         _communicator = communicator;
@@ -89,9 +87,7 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
         EnsureCommunicatorEnabled();
         _logger.LogInformation("Invoking {Method} on all connected users (streaming)", methodName);
 
-        // Get all connection IDs
-        var connectedUsers = await GetConnectedUsersAsync();
-        var connectionIds = connectedUsers.SelectMany(u => u.Connections.Select(c => c.ConnectionId)).ToList();
+        var connectionIds = _tracker.GetAllConnectionIds();
 
         if (connectionIds.Count == 0)
         {
@@ -101,7 +97,6 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
 
         await foreach (var response in _communicator!.InvokeMethodStreamingAsync(connectionIds, methodName, parameter, cancellationToken))
         {
-            // Process FilePath responses
             if (response.Response != null)
             {
                 response.Response = await ProcessFilePathResponseAsync(response.Response);
@@ -124,10 +119,7 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
             throw new InvalidOperationException($"User {userId} is not connected");
         }
 
-        // Get all connection IDs for this user
-        var connectedUsers = await GetConnectedUsersAsync();
-        var userConnections = connectedUsers.FirstOrDefault(u => u.UserId == userId);
-        var connectionIds = userConnections?.Connections.Select(c => c.ConnectionId).ToList() ?? new List<string>();
+        var connectionIds = _tracker.GetUserConnections(userId);
 
         if (connectionIds.Count == 0)
         {
@@ -154,11 +146,8 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
         var userIdList = userIds.ToList();
         _logger.LogInformation("Invoking {Method} on {Count} users (streaming)", methodName, userIdList.Count);
 
-        // Get all connection IDs for these users
-        var connectedUsers = await GetConnectedUsersAsync();
-        var connectionIds = connectedUsers
-            .Where(u => userIdList.Contains(u.UserId))
-            .SelectMany(u => u.Connections.Select(c => c.ConnectionId))
+        var connectionIds = userIdList
+            .SelectMany(userId => _tracker.GetUserConnections(userId))
             .ToList();
 
         if (connectionIds.Count == 0)
@@ -196,48 +185,22 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
         }
     }
 
-    /// <summary>
-    /// Processes a response that may contain a FilePath by reading the file content
-    /// and converting it to JsonData.
-    /// </summary>
     private async Task<SignalRResponse> ProcessFilePathResponseAsync(SignalRResponse response)
     {
-        _logger.LogInformation("=== ProcessFilePathResponse START ===");
-        _logger.LogInformation("ResponseType={ResponseType} (int={ResponseTypeInt}), FilePath={FilePath}, HasJsonData={HasJsonData}, ErrorMessage={ErrorMessage}",
-            response.ResponseType, (int)response.ResponseType, response.FilePath ?? "(null)", response.JsonData != null, response.ErrorMessage ?? "(null)");
-
-        // Check if response type is FilePath (value 1)
-        var isFilePath = response.ResponseType == SignalRResponseType.FilePath;
-        _logger.LogInformation("Is FilePath type check: {IsFilePath} (ResponseType enum value: {EnumValue})", isFilePath, response.ResponseType);
-
-        if (!isFilePath)
+        if (response.ResponseType != SignalRResponseType.FilePath || string.IsNullOrEmpty(response.FilePath))
         {
-            _logger.LogInformation("Response is not FilePath type (it is {Type} = {IntValue}), returning as-is", response.ResponseType, (int)response.ResponseType);
             return response;
         }
-
-        if (string.IsNullOrEmpty(response.FilePath))
-        {
-            _logger.LogWarning("ResponseType is FilePath but FilePath property is null or empty!");
-            return response;
-        }
-
-        _logger.LogInformation("FilePath response confirmed! Will read file: {FilePath}", response.FilePath);
-        _logger.LogInformation("IFileReaderService available: {Available}", _fileReaderService != null);
 
         if (_fileReaderService == null)
         {
-            _logger.LogError("IFileReaderService is NULL! Cannot read file. Make sure EnableCommunicator is true in options.");
+            _logger.LogError("IFileReaderService is not available. Cannot read file response.");
             return response;
         }
 
-        _logger.LogInformation("IFileReaderService type: {ServiceType}", _fileReaderService.GetType().FullName);
-
         try
         {
-            _logger.LogInformation("Calling ReadFileAsync for: {FilePath}", response.FilePath);
             var fileContent = await _fileReaderService.ReadFileAsync(response.FilePath);
-            _logger.LogInformation("File read successfully, content length: {Length} chars", fileContent?.Length ?? 0);
 
             if (string.IsNullOrEmpty(fileContent))
             {
@@ -245,21 +208,16 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
                 return response;
             }
 
-            _logger.LogInformation("Parsing JSON content from file (first 500 chars): {Preview}",
-                fileContent.Length > 500 ? fileContent.Substring(0, 500) + "..." : fileContent);
             var jsonData = JsonSerializer.Deserialize<JsonElement>(fileContent);
-            _logger.LogInformation("JSON parsed successfully, ValueKind: {ValueKind}", jsonData.ValueKind);
 
             // Auto-delete temp file if enabled
             if (_options.AutoDeleteTempFiles)
             {
-                _logger.LogInformation("AutoDeleteTempFiles is enabled, scheduling deletion...");
                 _ = Task.Run(async () =>
                 {
                     try
                     {
                         await _fileReaderService.DeleteFileAsync(response.FilePath);
-                        _logger.LogInformation("Deleted temp file: {FilePath}", response.FilePath);
                     }
                     catch (Exception ex)
                     {
@@ -267,8 +225,6 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
                     }
                 });
             }
-
-            _logger.LogInformation("=== ProcessFilePathResponse SUCCESS - Returning JsonObject response ===");
 
             return new SignalRResponse
             {
@@ -278,7 +234,7 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
         }
         catch (FileNotFoundException ex)
         {
-            _logger.LogError(ex, "FILE NOT FOUND: {FilePath}", response.FilePath);
+            _logger.LogError(ex, "File not found: {FilePath}", response.FilePath);
             return new SignalRResponse
             {
                 ResponseType = SignalRResponseType.Error,
@@ -287,7 +243,7 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "JSON PARSE ERROR from file: {FilePath}", response.FilePath);
+            _logger.LogError(ex, "JSON parse error from file: {FilePath}", response.FilePath);
             return new SignalRResponse
             {
                 ResponseType = SignalRResponseType.Error,
@@ -296,7 +252,7 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "UNEXPECTED ERROR reading file: {FilePath}", response.FilePath);
+            _logger.LogError(ex, "Error reading file: {FilePath}", response.FilePath);
             return new SignalRResponse
             {
                 ResponseType = SignalRResponseType.Error,
@@ -307,56 +263,31 @@ public class SignalRUserManagementService<TDbContext> : ISignalRUserManagementSe
 
     public int GetConnectedUsersCount()
     {
-        return _userManagement.GetConnectedUsersCount();
+        return _tracker.GetConnectedUsersCount();
     }
 
     public bool IsUserConnected(string userId)
     {
-        return _userManagement.IsUserConnected(userId);
+        return _tracker.IsUserConnected(userId);
     }
 
-    public async Task<List<ConnectedUserInfo>> GetConnectedUsersAsync()
+    public Task<List<ConnectedUserInfo>> GetConnectedUsersAsync()
     {
-        _logger.LogInformation("Fetching connected users...");
+        var groups = _tracker.GetAllConnections();
 
-        // Purge stale connections first
-        await _userManagement.PurgeStaleConnectionsAsync();
-
-        // Get connected users from database - all connections in the table are active
-        var connectedUsers = await _context.UserConnections
-            .GroupBy(uc => uc.UserId)
-            .Select(g => new
-            {
-                UserId = g.Key,
-                Connections = g.ToList()
-            })
-            .ToListAsync();
-
-        _logger.LogInformation("Found {Count} connected users", connectedUsers.Count);
-
-        var result = new List<ConnectedUserInfo>();
-
-        foreach (var cu in connectedUsers)
+        var result = groups.Select(g => new ConnectedUserInfo
         {
-            var lastConnection = cu.Connections.OrderByDescending(c => c.ConnectedAt).FirstOrDefault();
-            // Get username from the most recent connection (they should all have the same username for a user)
-            var userName = lastConnection?.Username;
-
-            result.Add(new ConnectedUserInfo
+            UserId = g.UserId,
+            Username = g.Username,
+            LastConnect = g.Connections.OrderByDescending(c => c.ConnectedAt).FirstOrDefault()?.ConnectedAt,
+            Connections = g.Connections.Select(c => new UserConnectionInfo
             {
-                UserId = cu.UserId,
-                Username = userName,
-                LastConnect = lastConnection?.ConnectedAt,
-                Connections = cu.Connections.Select(c => new UserConnectionInfo
-                {
-                    ConnectionId = c.ConnectionId,
-                    ConnectedAt = c.ConnectedAt
-                }).ToList()
-            });
-        }
+                ConnectionId = c.ConnectionId,
+                ConnectedAt = c.ConnectedAt
+            }).ToList()
+        }).ToList();
 
-        _logger.LogInformation("Returning {Count} users", result.Count);
-        return result;
+        return Task.FromResult(result);
     }
 
     private void EnsureCommunicatorEnabled()
