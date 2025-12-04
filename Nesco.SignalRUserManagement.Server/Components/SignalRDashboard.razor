@@ -79,8 +79,11 @@
                                     </td>
                                     <td>@user.LastConnect?.ToString("yyyy-MM-dd HH:mm:ss")</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => PingUser(user.UserId)" title="Ping this user">
+                                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => PingUser(user.UserId)" title="Ping this user">
                                             Ping
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger me-1" @onclick="() => LogoutUser(user.UserId)" title="Logout this user (all connections)">
+                                            Logout
                                         </button>
                                         <button class="btn btn-sm btn-outline-secondary" @onclick="() => ToggleConnectionDetails(user.UserId)">
                                             @(_expandedUsers.Contains(user.UserId) ? "Hide" : "Show") Details
@@ -110,8 +113,11 @@
                                                             <td><small>@conn.UserAgent</small></td>
                                                             <td>@conn.ConnectedAt.ToString("HH:mm:ss")</td>
                                                             <td>
-                                                                <button class="btn btn-xs btn-outline-primary" @onclick="() => PingConnection(conn.ConnectionId)" title="Ping this specific connection">
+                                                                <button class="btn btn-xs btn-outline-primary me-1" @onclick="() => PingConnection(conn.ConnectionId)" title="Ping this specific connection">
                                                                     Ping
+                                                                </button>
+                                                                <button class="btn btn-xs btn-outline-danger" @onclick="() => LogoutConnection(conn.ConnectionId)" title="Logout this specific connection">
+                                                                    Logout
                                                                 </button>
                                                             </td>
                                                         </tr>
@@ -375,6 +381,24 @@
     private async Task PingConnection(string connectionId)
     {
         _methodName = "Ping";
+        _targetType = "Connection";
+        _target = connectionId;
+        _parameters = "";
+        await InvokeMethod();
+    }
+
+    private async Task LogoutUser(string userId)
+    {
+        _methodName = "Logout";
+        _targetType = "User";
+        _target = userId;
+        _parameters = "";
+        await InvokeMethod();
+    }
+
+    private async Task LogoutConnection(string connectionId)
+    {
+        _methodName = "Logout";
         _targetType = "Connection";
         _target = connectionId;
         _parameters = "";
