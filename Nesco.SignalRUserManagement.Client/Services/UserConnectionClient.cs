@@ -48,6 +48,12 @@ public class UserConnectionClient : IAsyncDisposable
     public event Action<string?>? Reconnected;
 
     /// <summary>
+    /// Raised after a method is executed and response is sent.
+    /// Parameters: methodName, wasSuccessful
+    /// </summary>
+    public event Action<string, bool>? MethodCompleted;
+
+    /// <summary>
     /// Current connection state
     /// </summary>
     public HubConnectionState State => _connection?.State ?? HubConnectionState.Disconnected;
@@ -231,6 +237,7 @@ public class UserConnectionClient : IAsyncDisposable
 
         _connection!.On<string, string, object>("InvokeMethod", async (requestId, methodName, parameter) =>
         {
+            var success = false;
             try
             {
                 _logger.LogDebug("Received InvokeMethod call: Method={MethodName}, RequestId={RequestId}",
@@ -241,11 +248,21 @@ public class UserConnectionClient : IAsyncDisposable
                 _logger.LogDebug("Method {MethodName} executed, sending response: ResponseType={ResponseType}, FilePath={FilePath}, HasJsonData={HasJsonData}, RequestId={RequestId}",
                     methodName, responseDto.ResponseType, responseDto.FilePath, responseDto.JsonData != null, requestId);
 
-                // Serialize for debugging
-                var debugJson = JsonSerializer.Serialize(responseDto, _jsonOptions);
-                _logger.LogDebug("Sending response JSON: {Json}", debugJson);
+                // Check if connection is still active before sending response
+                // (e.g., Logout method may have stopped the connection)
+                if (_connection != null && _connection.State == HubConnectionState.Connected)
+                {
+                    // Serialize for debugging
+                    var debugJson = JsonSerializer.Serialize(responseDto, _jsonOptions);
+                    _logger.LogDebug("Sending response JSON: {Json}", debugJson);
 
-                await _connection.InvokeAsync("HandleResponse", requestId, (object?)responseDto);
+                    await _connection.InvokeAsync("HandleResponse", requestId, (object?)responseDto);
+                    success = true;
+                }
+                else
+                {
+                    _logger.LogDebug("Connection no longer active, skipping response for {MethodName}", methodName);
+                }
             }
             catch (Exception ex)
             {
@@ -267,6 +284,11 @@ public class UserConnectionClient : IAsyncDisposable
                         _logger.LogError(sendEx, "Failed to send error response for request {RequestId}", requestId);
                     }
                 }
+            }
+            finally
+            {
+                // Raise event after response is sent (useful for methods like Logout that need post-response actions)
+                MethodCompleted?.Invoke(methodName, success);
             }
         });
 
