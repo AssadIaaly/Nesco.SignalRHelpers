@@ -1,0 +1,89 @@
+@page "/users"
+@inject AuthService AuthService
+@inject ChatService ChatService
+@inject NavigationManager Navigation
+
+<PageTitle>New Chat</PageTitle>
+
+<div class="container-fluid p-0" style="max-width: 600px; margin: 0 auto;">
+    <!-- Header -->
+    <div class="bg-success text-white p-3 d-flex align-items-center">
+        <button class="btn btn-link text-white p-0 me-3" @onclick="GoBack">
+            <strong>&larr;</strong>
+        </button>
+        <h5 class="mb-0">New Chat</h5>
+    </div>
+
+    <!-- Users List -->
+    <div class="list-group list-group-flush">
+        @if (_isLoading)
+        {
+            <div class="text-center p-4">
+                <div class="spinner-border text-success" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 text-muted">Loading users...</p>
+            </div>
+        }
+        else if (!_users.Any())
+        {
+            <div class="text-center p-5">
+                <p class="text-muted">No other users found</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var user in _users)
+            {
+                <UserListItem User="user" OnClick="StartConversation" />
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private List<UserDto> _users = new();
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.CheckAuthAsync();
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        try
+        {
+            _users = await ChatService.GetUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Users] Error loading: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task StartConversation(UserDto user)
+    {
+        var conversation = await ChatService.StartConversationAsync(user.Id);
+        if (conversation != null)
+        {
+            Navigation.NavigateTo($"/chat/{conversation.Id}");
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

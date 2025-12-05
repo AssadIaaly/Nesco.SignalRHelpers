@@ -16,10 +16,11 @@ namespace Nesco.SignalRUserManagement.Server.Authorization.Controllers;
 [Route("api/[controller]")]
 public class AuthController<TUser> : ControllerBase where TUser : IdentityUser
 {
-    private readonly SignInManager<TUser> _signInManager;
-    private readonly UserManager<TUser> _userManager;
     private readonly IConfiguration _configuration;
     private readonly JwtAuthOptions? _jwtOptions;
+
+    protected SignInManager<TUser> SignInManager { get; }
+    protected UserManager<TUser> UserManager { get; }
 
     public AuthController(
         SignInManager<TUser> signInManager,
@@ -27,8 +28,8 @@ public class AuthController<TUser> : ControllerBase where TUser : IdentityUser
         IConfiguration configuration,
         IOptions<JwtAuthOptions>? jwtOptions = null)
     {
-        _signInManager = signInManager;
-        _userManager = userManager;
+        SignInManager = signInManager;
+        UserManager = userManager;
         _configuration = configuration;
         _jwtOptions = jwtOptions?.Value;
     }
@@ -36,13 +37,13 @@ public class AuthController<TUser> : ControllerBase where TUser : IdentityUser
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var user = await _userManager.FindByEmailAsync(request.Email);
+        var user = await UserManager.FindByEmailAsync(request.Email);
         if (user == null)
         {
             return Unauthorized("Invalid email or password");
         }
 
-        var result = await _signInManager.CheckPasswordSignInAsync(
+        var result = await SignInManager.CheckPasswordSignInAsync(
             user,
             request.Password,
             lockoutOnFailure: false);
@@ -89,7 +90,7 @@ public class AuthController<TUser> : ControllerBase where TUser : IdentityUser
             return Unauthorized();
         }
 
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await UserManager.FindByIdAsync(userId);
         if (user == null)
         {
             return Unauthorized();

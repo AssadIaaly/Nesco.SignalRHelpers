@@ -1,0 +1,13 @@
+<div class="typing-indicator">
+    <span class="typing-text">@UserName is typing</span>
+    <div class="typing-dots">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string UserName { get; set; } = "Someone";
+}

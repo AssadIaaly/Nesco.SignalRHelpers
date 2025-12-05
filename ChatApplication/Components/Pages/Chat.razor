@@ -1,0 +1,329 @@
+@page "/chat/{ConversationId}"
+@using ChatApplication.Services
+@inject AuthService AuthService
+@inject ChatService ChatService
+@inject NavigationManager Navigation
+@inject UserConnectionClient ConnectionClient
+@inject IKeyboardService KeyboardService
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<div class="chat-page" style="padding-bottom: @(_keyboardPadding)px;">
+    <div class="chat-header">
+        <button class="back-button" @onclick="GoBack">
+            <span>←</span>
+        </button>
+        <div class="chat-header-info">
+            <div class="chat-header-name">@(_otherUser?.DisplayNameOrEmail ?? "Loading...")</div>
+            <div class="chat-header-status">
+                @if (_isTyping)
+                {
+                    <span class="typing">typing...</span>
+                }
+                else if (_otherUser?.IsOnline == true)
+                {
+                    <span class="online">Online</span>
+                }
+                else if (_otherUser?.LastSeen.HasValue == true)
+                {
+                    <span class="offline">Last seen @FormatLastSeen(_otherUser.LastSeen.Value)</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-messages" @ref="_messagesContainer">
+        @if (_isLoading)
+        {
+            <div class="loading-container">
+                <p>Loading messages...</p>
+            </div>
+        }
+        else if (!_messages.Any())
+        {
+            <div class="empty-chat">
+                <p>No messages yet. Say hello!</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var message in _messages)
+            {
+                <ChatBubble Message="message" />
+            }
+        }
+    </div>
+
+    <ChatInput OnSend="SendMessage"
+               OnTypingStarted="StartTyping"
+               OnTypingStopped="StopTyping"
+               OnFocused="OnInputFocused"
+               IsDisabled="@(!ConnectionClient.IsConnected)" />
+</div>
+
+@code {
+    [Parameter]
+    public string ConversationId { get; set; } = string.Empty;
+
+    private List<ChatMessageDto> _messages = new();
+    private UserDto? _otherUser;
+    private bool _isLoading = true;
+    private bool _isTyping;
+    private ElementReference _messagesContainer;
+    private Timer? _typingTimer;
+    private double _keyboardPadding;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        // Subscribe to keyboard events
+        KeyboardService.KeyboardHeightChanged += OnKeyboardHeightChanged;
+        _keyboardPadding = KeyboardService.CurrentKeyboardHeight;
+
+        ChatService.OnMessageReceived += OnMessageReceived;
+        ChatService.OnMessageDelivered += OnMessageDelivered;
+        ChatService.OnMessagesRead += OnMessagesRead;
+        ChatService.OnUserTyping += OnUserTyping;
+        ChatService.OnUserStatusChanged += OnUserStatusChanged;
+        ChatService.OnForceLogout += OnForceLogout;
+
+        await LoadMessages();
+        await MarkAsRead();
+    }
+
+    private async void OnKeyboardHeightChanged(double height)
+    {
+        _keyboardPadding = height;
+        await InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            if (height > 0)
+            {
+                // Scroll to bottom when keyboard appears - wait for layout to settle
+                await Task.Delay(150);
+                await ScrollToBottom();
+            }
+        });
+    }
+
+    private async Task LoadMessages()
+    {
+        try
+        {
+            _messages = await ChatService.GetMessagesAsync(ConversationId);
+
+            // Get conversation to find other user
+            var conversations = await ChatService.GetConversationsAsync();
+            var conversation = conversations.FirstOrDefault(c => c.Id == ConversationId);
+            _otherUser = conversation?.OtherUser;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Chat] Error loading messages: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+            await ScrollToBottom();
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await Task.Delay(50); // Small delay to ensure DOM is updated
+            await JSRuntime.InvokeVoidAsync("eval", "document.querySelector('.chat-messages')?.scrollTo(0, document.querySelector('.chat-messages')?.scrollHeight)");
+        }
+        catch
+        {
+            // Ignore scroll errors
+        }
+    }
+
+    private async Task MarkAsRead()
+    {
+        await ChatService.MarkAsReadAsync(ConversationId);
+    }
+
+    private async Task SendMessage(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        var otherUserId = _otherUser?.Id;
+        if (string.IsNullOrEmpty(otherUserId))
+            return;
+
+        var response = await ChatService.SendMessageAsync(otherUserId, text);
+        if (response != null)
+        {
+            // Add message to local list immediately
+            _messages.Add(new ChatMessageDto(
+                response.MessageId,
+                AuthService.UserId!,
+                otherUserId,
+                ConversationId,
+                text,
+                response.SentAt,
+                null,
+                null,
+                MessageStatus.Sent,
+                true
+            ));
+            StateHasChanged();
+            await ScrollToBottom();
+        }
+    }
+
+    private async Task StartTyping()
+    {
+        await ChatService.StartTypingAsync(ConversationId);
+    }
+
+    private async Task StopTyping()
+    {
+        await ChatService.StopTypingAsync(ConversationId);
+    }
+
+    private async Task OnInputFocused()
+    {
+        // Delay to allow keyboard to appear and layout to adjust
+        await Task.Delay(300);
+        await ScrollToBottom();
+    }
+
+    private async void OnMessageReceived(NewMessageEvent evt)
+    {
+        if (evt.ConversationId != ConversationId)
+            return;
+
+        _messages.Add(new ChatMessageDto(
+            evt.Id,
+            evt.SenderId,
+            AuthService.UserId!,
+            evt.ConversationId,
+            evt.Text,
+            evt.SentAt,
+            DateTime.UtcNow,
+            null,
+            MessageStatus.Delivered,
+            false
+        ));
+
+        await MarkAsRead();
+        await InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            await ScrollToBottom();
+        });
+    }
+
+    private async void OnMessageDelivered(MessageDeliveredEvent evt)
+    {
+        if (evt.ConversationId != ConversationId)
+            return;
+
+        var message = _messages.FirstOrDefault(m => m.Id == evt.MessageId);
+        if (message != null)
+        {
+            message.Status = MessageStatus.Delivered;
+            message.DeliveredAt = evt.DeliveredAt;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async void OnMessagesRead(MessagesReadEvent evt)
+    {
+        if (evt.ConversationId != ConversationId)
+            return;
+
+        foreach (var msg in _messages)
+        {
+            if (msg.IsMine && msg.Status != MessageStatus.Read)
+            {
+                msg.Status = MessageStatus.Read;
+                msg.ReadAt = evt.ReadAt;
+            }
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnUserTyping(TypingNotification notification)
+    {
+        if (notification.ConversationId != ConversationId)
+            return;
+
+        _isTyping = notification.IsTyping;
+        await InvokeAsync(StateHasChanged);
+
+        // Auto-clear typing indicator after 3 seconds
+        if (_isTyping)
+        {
+            _typingTimer?.Dispose();
+            _typingTimer = new Timer(_ =>
+            {
+                _isTyping = false;
+                InvokeAsync(StateHasChanged);
+            }, null, TimeSpan.FromSeconds(3), Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private async void OnUserStatusChanged(UserStatusEvent evt)
+    {
+        if (_otherUser?.Id != evt.UserId)
+            return;
+
+        _otherUser.IsOnline = evt.IsOnline;
+        _otherUser.LastSeen = evt.LastSeen;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string FormatLastSeen(DateTime lastSeen)
+    {
+        var local = lastSeen.ToLocalTime();
+        var now = DateTime.Now;
+        var diff = now - local;
+
+        if (diff.TotalMinutes < 1)
+            return "just now";
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24)
+            return $"{(int)diff.TotalHours}h ago";
+        if (local.Date == now.Date.AddDays(-1))
+            return "yesterday";
+
+        return local.ToString("dd/MM HH:mm");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void OnForceLogout(ForceLogoutEvent evt)
+    {
+        Console.WriteLine($"[Chat] ForceLogout: {evt.Reason}");
+        // Navigate to home page which will show login screen
+        InvokeAsync(() => Navigation.NavigateTo("/"));
+    }
+
+    public void Dispose()
+    {
+        _typingTimer?.Dispose();
+        KeyboardService.KeyboardHeightChanged -= OnKeyboardHeightChanged;
+        ChatService.OnForceLogout -= OnForceLogout;
+        ChatService.OnMessageReceived -= OnMessageReceived;
+        ChatService.OnMessageDelivered -= OnMessageDelivered;
+        ChatService.OnMessagesRead -= OnMessagesRead;
+        ChatService.OnUserTyping -= OnUserTyping;
+        ChatService.OnUserStatusChanged -= OnUserStatusChanged;
+    }
+}

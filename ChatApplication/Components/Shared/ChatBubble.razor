@@ -1,0 +1,32 @@
+@using ChatApplication.Models
+
+<div class="message-row @(Message.IsMine ? "mine" : "theirs")">
+    <div class="message-bubble @(Message.IsMine ? "sent" : "received")">
+        <div class="message-text">@Message.Text</div>
+        <div class="message-meta">
+            <span class="message-time">@Message.SentAt.ToLocalTime().ToString("HH:mm")</span>
+            @if (Message.IsMine)
+            {
+                <span class="message-status">
+                    @switch (Message.Status)
+                    {
+                        case MessageStatus.Sent:
+                            <span class="status-icon">✓</span>
+                            break;
+                        case MessageStatus.Delivered:
+                            <span class="status-icon delivered">✓✓</span>
+                            break;
+                        case MessageStatus.Read:
+                            <span class="status-icon read">✓✓</span>
+                            break;
+                    }
+                </span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ChatMessageDto Message { get; set; } = null!;
+}

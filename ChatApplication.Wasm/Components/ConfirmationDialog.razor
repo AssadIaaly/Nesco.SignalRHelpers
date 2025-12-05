@@ -1,0 +1,54 @@
+@if (IsVisible)
+{
+    <div class="dialog-overlay" @onclick="OnBackdropClick">
+        <div class="dialog-container" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h5>@Title</h5>
+            </div>
+            <div class="dialog-body">
+                <p>@Message</p>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-secondary" @onclick="OnCancel" disabled="@IsProcessing">
+                    @CancelText
+                </button>
+                <button class="btn btn-primary" @onclick="OnConfirm" disabled="@IsProcessing">
+                    @if (IsProcessing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    }
+                    @ConfirmText
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; } = "Confirm";
+    [Parameter] public string Message { get; set; } = "Are you sure?";
+    [Parameter] public string ConfirmText { get; set; } = "Yes";
+    [Parameter] public string CancelText { get; set; } = "No";
+    [Parameter] public bool IsProcessing { get; set; }
+    [Parameter] public EventCallback OnConfirmClicked { get; set; }
+    [Parameter] public EventCallback OnCancelClicked { get; set; }
+
+    private async Task OnConfirm()
+    {
+        await OnConfirmClicked.InvokeAsync();
+    }
+
+    private async Task OnCancel()
+    {
+        await OnCancelClicked.InvokeAsync();
+    }
+
+    private async Task OnBackdropClick()
+    {
+        if (!IsProcessing)
+        {
+            await OnCancelClicked.InvokeAsync();
+        }
+    }
+}

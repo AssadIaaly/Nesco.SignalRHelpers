@@ -1,0 +1,85 @@
+<div class="chat-input-container">
+    <div class="input-group">
+        <input type="text"
+               class="form-control"
+               placeholder="Type a message..."
+               @bind="MessageText"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDown"
+               @onfocus="HandleFocus"
+               @onblur="HandleBlur"
+               disabled="@IsDisabled" />
+        <button class="btn btn-success"
+                @onclick="SendMessage"
+                disabled="@(!CanSend)">
+            Send
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<string> OnSend { get; set; }
+
+    [Parameter]
+    public EventCallback OnTypingStarted { get; set; }
+
+    [Parameter]
+    public EventCallback OnTypingStopped { get; set; }
+
+    [Parameter]
+    public bool IsDisabled { get; set; }
+
+    private string MessageText { get; set; } = string.Empty;
+    private bool _isTyping;
+
+    private bool CanSend => !IsDisabled && !string.IsNullOrWhiteSpace(MessageText);
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey && CanSend)
+        {
+            await SendMessage();
+        }
+        else if (!_isTyping && !string.IsNullOrEmpty(MessageText))
+        {
+            _isTyping = true;
+            await OnTypingStarted.InvokeAsync();
+        }
+    }
+
+    private async Task HandleFocus()
+    {
+        if (!string.IsNullOrEmpty(MessageText) && !_isTyping)
+        {
+            _isTyping = true;
+            await OnTypingStarted.InvokeAsync();
+        }
+    }
+
+    private async Task HandleBlur()
+    {
+        if (_isTyping)
+        {
+            _isTyping = false;
+            await OnTypingStopped.InvokeAsync();
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (!CanSend)
+            return;
+
+        var text = MessageText.Trim();
+        MessageText = string.Empty;
+
+        if (_isTyping)
+        {
+            _isTyping = false;
+            await OnTypingStopped.InvokeAsync();
+        }
+
+        await OnSend.InvokeAsync(text);
+    }
+}

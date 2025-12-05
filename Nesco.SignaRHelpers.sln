@@ -26,6 +26,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nesco.SignalRUserManagement
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nesco.SignalRUserManagement.Client.Authorization", "Nesco.SignalRUserManagement.Client.Authorization\Nesco.SignalRUserManagement.Client.Authorization.csproj", "{CDF1A835-3744-442A-9298-AF29215BB6EC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatApplication", "ChatApplication\ChatApplication.csproj", "{81B6FEF0-A057-4176-BE1B-DFAC87DB1940}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatApplication.Server", "ChatApplication.Server\ChatApplication.Server.csproj", "{075F6D79-CDC6-4261-9D61-FCA437B7D0F8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatApplication.Wasm", "ChatApplication.Wasm\ChatApplication.Wasm.csproj", "{DABB5DB3-8AD4-465A-997E-00E09C7A8222}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -84,5 +90,17 @@ Global
 		{CDF1A835-3744-442A-9298-AF29215BB6EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CDF1A835-3744-442A-9298-AF29215BB6EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CDF1A835-3744-442A-9298-AF29215BB6EC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{81B6FEF0-A057-4176-BE1B-DFAC87DB1940}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{81B6FEF0-A057-4176-BE1B-DFAC87DB1940}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{81B6FEF0-A057-4176-BE1B-DFAC87DB1940}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{81B6FEF0-A057-4176-BE1B-DFAC87DB1940}.Release|Any CPU.Build.0 = Release|Any CPU
+		{075F6D79-CDC6-4261-9D61-FCA437B7D0F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{075F6D79-CDC6-4261-9D61-FCA437B7D0F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{075F6D79-CDC6-4261-9D61-FCA437B7D0F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{075F6D79-CDC6-4261-9D61-FCA437B7D0F8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DABB5DB3-8AD4-465A-997E-00E09C7A8222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DABB5DB3-8AD4-465A-997E-00E09C7A8222}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DABB5DB3-8AD4-465A-997E-00E09C7A8222}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DABB5DB3-8AD4-465A-997E-00E09C7A8222}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

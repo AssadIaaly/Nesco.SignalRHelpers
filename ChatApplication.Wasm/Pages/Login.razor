@@ -1,0 +1,190 @@
+@page "/login"
+@using ChatApplication.Wasm.Components
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Login - Chat</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Chat - Login</h3>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert alert-danger">@_errorMessage</div>
+                    }
+
+                    <EditForm Model="_loginModel" OnValidSubmit="HandleLogin">
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText @bind-Value="_loginModel.Email" class="form-control" placeholder="email@example.com" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <InputText @bind-Value="_loginModel.Password" type="password" class="form-control" />
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100" disabled="@_isLoading">
+                            @if (_isLoading)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                <span>@_loadingMessage</span>
+                            }
+                            else
+                            {
+                                <span>Login</span>
+                            }
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ConfirmationDialog
+    IsVisible="@_showExistingConnectionDialog"
+    Title="Active Session Detected"
+    Message="@_dialogMessage"
+    ConfirmText="Yes, logout other sessions"
+    CancelText="No, cancel login"
+    IsProcessing="@_isForceLoggingOut"
+    OnConfirmClicked="OnConfirmForceLogout"
+    OnCancelClicked="OnCancelForceLogout" />
+
+@code {
+    private LoginModel _loginModel = new();
+    private string? _errorMessage;
+    private bool _isLoading;
+    private string _loadingMessage = "Logging in...";
+
+    // Dialog state
+    private bool _showExistingConnectionDialog;
+    private string _dialogMessage = "";
+    private bool _isForceLoggingOut;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // If already authenticated, redirect to home
+        var isAuthenticated = await AuthService.CheckAuthAsync();
+        if (isAuthenticated)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        _loadingMessage = "Checking...";
+
+        try
+        {
+            Console.WriteLine($"[Login] Checking existing connections for {_loginModel.Email}");
+
+            // First, check if user is already connected elsewhere
+            var connectionCheck = await AuthService.CheckConnectionAsync(_loginModel.Email, _loginModel.Password);
+
+            if (connectionCheck == null)
+            {
+                // Connection check failed - try regular login which will give proper error
+                await PerformLogin();
+                return;
+            }
+
+            if (connectionCheck.IsConnected)
+            {
+                // User is already connected - show confirmation dialog
+                Console.WriteLine($"[Login] User has {connectionCheck.ConnectionCount} active connection(s)");
+                _dialogMessage = connectionCheck.ConnectionCount == 1
+                    ? "You are already logged in on another device. Do you want to logout from that session and continue?"
+                    : $"You are already logged in on {connectionCheck.ConnectionCount} other devices. Do you want to logout from those sessions and continue?";
+                _showExistingConnectionDialog = true;
+                _isLoading = false;
+                return;
+            }
+
+            // No existing connections, proceed with login
+            await PerformLogin();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error: {ex.Message}";
+            Console.WriteLine($"[Login] Exception: {ex}");
+            _isLoading = false;
+        }
+    }
+
+    private async Task PerformLogin()
+    {
+        _loadingMessage = "Logging in...";
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            Console.WriteLine($"[Login] Attempting login for {_loginModel.Email}");
+
+            var result = await AuthService.LoginAsync(_loginModel.Email, _loginModel.Password);
+
+            if (result.Success)
+            {
+                Console.WriteLine("[Login] Login successful, navigating to home");
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                _errorMessage = result.Error ?? "Login failed";
+                Console.WriteLine($"[Login] Login failed: {_errorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error: {ex.Message}";
+            Console.WriteLine($"[Login] Exception: {ex}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnConfirmForceLogout()
+    {
+        _isForceLoggingOut = true;
+        StateHasChanged();
+
+        try
+        {
+            // User confirmed they want to logout other sessions
+            // Proceed with login - the server will handle force logout when SignalR connects
+            Console.WriteLine("[Login] User confirmed force logout, proceeding with login");
+            _showExistingConnectionDialog = false;
+            await PerformLogin();
+        }
+        finally
+        {
+            _isForceLoggingOut = false;
+        }
+    }
+
+    private void OnCancelForceLogout()
+    {
+        Console.WriteLine("[Login] User cancelled login due to existing sessions");
+        _showExistingConnectionDialog = false;
+        _isLoading = false;
+        _errorMessage = "Login cancelled. You chose not to logout other sessions.";
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}

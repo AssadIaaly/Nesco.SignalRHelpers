@@ -1,0 +1,487 @@
+@page "/"
+@using ChatApplication.Components.Shared
+@inject AuthService AuthService
+@inject ChatService ChatService
+@inject NavigationManager Navigation
+@inject UserConnectionClient ConnectionClient
+@implements IDisposable
+
+<style>
+    .card { border: 1px solid #dee2e6; border-radius: 0.375rem; margin-bottom: 1rem; }
+    .card-header { padding: 0.75rem 1rem; border-bottom: 1px solid #dee2e6; font-weight: bold; }
+    .card-body { padding: 1rem; }
+    .badge { display: inline-block; padding: 0.25em 0.5em; font-size: 0.75rem; font-weight: 700; border-radius: 0.25rem; }
+    .bg-success { background-color: #25D366; color: white; }
+    .bg-danger { background-color: #dc3545; color: white; }
+    .bg-warning { background-color: #ffc107; color: black; }
+    .btn { display: inline-block; padding: 0.375rem 0.75rem; font-size: 1rem; border-radius: 0.25rem; cursor: pointer; border: none; }
+    .btn-primary { background-color: #25D366; color: white; }
+    .btn-outline-danger { background-color: transparent; border: 1px solid #dc3545; color: #dc3545; }
+    .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
+    .form-control { display: block; width: 100%; padding: 0.375rem 0.75rem; font-size: 1rem; border: 1px solid #ced4da; border-radius: 0.25rem; margin-bottom: 0.5rem; box-sizing: border-box; }
+    .alert { padding: 1rem; margin-bottom: 1rem; border-radius: 0.25rem; }
+    .alert-danger { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+    .text-muted { color: #6c757d; }
+</style>
+
+@if (!_isAuthenticated)
+{
+    <div style="max-width: 400px; margin: 2rem auto; padding: 1rem;">
+        <div class="card">
+            <div class="card-header" style="background-color: #075E54; color: white;">
+                Chat - Sign In
+            </div>
+            <div class="card-body">
+                <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin">
+                    <div style="margin-bottom: 1rem;">
+                        <label>Email</label>
+                        <InputText class="form-control" @bind-Value="_loginModel.Email" placeholder="Enter email" />
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label>Password</label>
+                        <InputText type="password" class="form-control" @bind-Value="_loginModel.Password" placeholder="Enter password" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(_loginError))
+                    {
+                        <div class="alert alert-danger">@_loginError</div>
+                    }
+                    <button type="submit" class="btn btn-primary" style="width: 100%;" disabled="@_isLoggingIn">
+                        @(_isLoggingIn ? _loginButtonText : "Sign In")
+                    </button>
+                </EditForm>
+            </div>
+        </div>
+
+    </div>
+
+    <ConfirmationDialog
+        IsVisible="@_showExistingConnectionDialog"
+        Title="Active Session Detected"
+        Message="@_dialogMessage"
+        ConfirmText="Yes, logout other sessions"
+        CancelText="No, cancel"
+        IsProcessing="@_isForceLoggingOut"
+        OnConfirmClicked="OnConfirmForceLogout"
+        OnCancelClicked="OnCancelForceLogout" />
+}
+else
+{
+    <div class="conversations-page">
+        <div class="page-header">
+            <div>
+                <small style="opacity: 0.75;">Welcome @AuthService.CurrentUser?.Identity?.Name</small>
+                <h1>Chats</h1>
+            </div>
+            <div class="header-actions">
+                <div class="connection-status @(_isConnected ? "connected" : _isConnecting ? "connecting" : "disconnected")">
+                    <span class="status-dot"></span>
+                    <span class="status-text">@(_isConnected ? "Connected" : _isConnecting ? "Connecting..." : "Disconnected")</span>
+                </div>
+                <button class="icon-button" @onclick="NavigateToUsers" title="New Chat">
+                    <span>+</span>
+                </button>
+                <button class="icon-button logout" @onclick="HandleLogout" title="Logout">
+                    <span>X</span>
+                </button>
+            </div>
+        </div>
+
+        @if (_isLoadingConversations)
+        {
+            <div class="loading-container">
+                <p>Loading conversations...</p>
+            </div>
+        }
+        else if (!_conversations.Any())
+        {
+            <div class="empty-state">
+                <p>No conversations yet</p>
+                <button class="primary-button" @onclick="NavigateToUsers">Start a new chat</button>
+            </div>
+        }
+        else
+        {
+            <div class="conversations-list">
+                @foreach (var conversation in _conversations)
+                {
+                    <ConversationListItem Conversation="conversation" OnClick="OpenConversation" />
+                }
+            </div>
+        }
+
+    </div>
+}
+
+<Snackbar @ref="_snackbar" />
+
+@code {
+    // Auth state
+    private bool _isAuthenticated;
+    private LoginModel _loginModel = new();
+    private bool _isLoggingIn;
+    private string? _loginError;
+    private string _loginButtonText = "Checking...";
+
+    // Dialog state for existing connection
+    private bool _showExistingConnectionDialog;
+    private string _dialogMessage = "";
+    private bool _isForceLoggingOut;
+
+    // Connection state
+    private bool _isConnected;
+    private bool _isConnecting;
+    private bool _isReconnecting;
+    private Timer? _statusTimer;
+    private Timer? _reconnectTimer;
+
+    // Conversations
+    private List<ConversationDto> _conversations = new();
+    private bool _isLoadingConversations = true;
+
+    // Snackbar for notifications
+    private Snackbar? _snackbar;
+
+    // Hub URL - must match the server's MapSignalRUserManagement path (default: /hubs/usermanagement)
+#if ANDROID
+    private const string HubUrl = "http://10.0.2.2:5000/hubs/usermanagement";
+#else
+    private const string HubUrl = "http://localhost:5000/hubs/usermanagement";
+#endif
+
+    protected override async Task OnInitializedAsync()
+    {
+        Console.WriteLine("[Home] OnInitializedAsync started");
+        _isAuthenticated = AuthService.IsAuthenticated;
+
+        if (_isAuthenticated)
+        {
+            await InitializeAuthenticatedState();
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        _isLoggingIn = true;
+        _loginError = null;
+        _loginButtonText = "Checking...";
+
+        try
+        {
+            // First check if user is already connected elsewhere
+            var connectionCheck = await AuthService.CheckConnectionAsync(_loginModel.Email, _loginModel.Password);
+
+            if (connectionCheck == null)
+            {
+                // Check failed - proceed with normal login (will give proper error)
+                await PerformLogin();
+                return;
+            }
+
+            if (connectionCheck.IsConnected)
+            {
+                // User is already connected - show confirmation dialog
+                _dialogMessage = connectionCheck.ConnectionCount == 1
+                    ? "You are already logged in on another device. Do you want to logout from that session and continue?"
+                    : $"You are already logged in on {connectionCheck.ConnectionCount} other devices. Do you want to logout from those sessions and continue?";
+                _showExistingConnectionDialog = true;
+                _isLoggingIn = false;
+                return;
+            }
+
+            // No existing connections, proceed with login
+            await PerformLogin();
+        }
+        catch (Exception ex)
+        {
+            _loginError = $"Login failed: {ex.Message}";
+            Console.WriteLine($"[Home] Login exception: {ex.Message}");
+            _isLoggingIn = false;
+        }
+    }
+
+    private async Task PerformLogin()
+    {
+        _loginButtonText = "Signing in...";
+        _isLoggingIn = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AuthService.LoginAsync(_loginModel.Email, _loginModel.Password);
+
+            if (result)
+            {
+                _isAuthenticated = true;
+                await InitializeAuthenticatedState();
+            }
+            else
+            {
+                _loginError = AuthService.LastError ?? "Invalid email or password";
+            }
+        }
+        catch (Exception ex)
+        {
+            _loginError = $"Login failed: {ex.Message}";
+            Console.WriteLine($"[Home] Login exception: {ex.Message}");
+        }
+        finally
+        {
+            _isLoggingIn = false;
+        }
+    }
+
+    private async Task OnConfirmForceLogout()
+    {
+        _isForceLoggingOut = true;
+        StateHasChanged();
+
+        try
+        {
+            _showExistingConnectionDialog = false;
+            await PerformLogin();
+        }
+        finally
+        {
+            _isForceLoggingOut = false;
+        }
+    }
+
+    private void OnCancelForceLogout()
+    {
+        _showExistingConnectionDialog = false;
+        _isLoggingIn = false;
+        _loginError = "Login cancelled. You chose not to logout other sessions.";
+    }
+
+    private async Task InitializeAuthenticatedState()
+    {
+        // Subscribe to events
+        ConnectionClient.ConnectionStatusChanged += OnConnectionStatusChanged;
+        ConnectionClient.Reconnecting += OnReconnecting;
+        ConnectionClient.Reconnected += OnReconnected;
+        ChatService.OnConversationsUpdated += OnConversationsUpdated;
+        ChatService.OnForceLogout += OnForceLogout;
+        ChatService.OnUserStatusChanged += OnUserStatusChanged;
+        ChatService.OnMessageReceived += OnMessageReceived;
+
+        // Start connection
+        if (!ConnectionClient.IsConnected && !string.IsNullOrEmpty(AuthService.AccessToken))
+        {
+            await StartConnection();
+        }
+        else
+        {
+            _isConnected = ConnectionClient.IsConnected;
+        }
+
+        // Load conversations
+        await LoadConversations();
+
+        // Periodic status check
+        _statusTimer = new Timer(async _ =>
+        {
+            _isConnected = ConnectionClient.IsConnected;
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
+    }
+
+    private async Task StartConnection()
+    {
+        _isConnecting = true;
+        StateHasChanged();
+
+        try
+        {
+            await ConnectionClient.StartAsync(HubUrl, () => Task.FromResult(AuthService.AccessToken!));
+            _isConnected = true;
+            _isConnecting = false;
+            Console.WriteLine($"[Home] Connected successfully! ConnectionId: {ConnectionClient.ConnectionId}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Home] Connection failed: {ex.Message}");
+            _isConnecting = false;
+            StartContinuousRetry();
+        }
+    }
+
+    private void StartContinuousRetry()
+    {
+        _reconnectTimer?.Dispose();
+        _reconnectTimer = new Timer(async _ =>
+        {
+            if (!ConnectionClient.IsConnected && AuthService.IsAuthenticated)
+            {
+                try
+                {
+                    await ConnectionClient.StartAsync(HubUrl, () => Task.FromResult(AuthService.AccessToken!));
+                    Console.WriteLine("[Home] Retry: reconnected successfully!");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Home] Retry failed: {ex.Message}");
+                }
+            }
+            else if (ConnectionClient.IsConnected)
+            {
+                _reconnectTimer?.Dispose();
+                _reconnectTimer = null;
+            }
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task LoadConversations()
+    {
+        try
+        {
+            _conversations = await ChatService.GetConversationsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Home] Error loading conversations: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingConversations = false;
+        }
+    }
+
+    private void OpenConversation(ConversationDto conversation)
+    {
+        Navigation.NavigateTo($"/chat/{conversation.Id}");
+    }
+
+    private void NavigateToUsers()
+    {
+        Navigation.NavigateTo("/users");
+    }
+
+    private async Task HandleLogout()
+    {
+        Console.WriteLine("[Home] Logging out");
+
+        // Unsubscribe from events
+        ConnectionClient.ConnectionStatusChanged -= OnConnectionStatusChanged;
+        ConnectionClient.Reconnecting -= OnReconnecting;
+        ConnectionClient.Reconnected -= OnReconnected;
+        ChatService.OnConversationsUpdated -= OnConversationsUpdated;
+        ChatService.OnForceLogout -= OnForceLogout;
+        ChatService.OnUserStatusChanged -= OnUserStatusChanged;
+        ChatService.OnMessageReceived -= OnMessageReceived;
+
+        // Stop timers
+        _statusTimer?.Dispose();
+        _reconnectTimer?.Dispose();
+
+        // Disconnect and clear
+        await ConnectionClient.StopAsync();
+        await ChatService.ClearLocalDataAsync();
+        await AuthService.LogoutAsync();
+
+        // Reset state
+        _isAuthenticated = false;
+        _isConnected = false;
+        _conversations = new();
+        _loginModel = new();
+    }
+
+    private async void OnConnectionStatusChanged(bool isConnected)
+    {
+        _isConnected = isConnected;
+        _isConnecting = false;
+        if (isConnected)
+        {
+            _reconnectTimer?.Dispose();
+            _reconnectTimer = null;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnReconnecting()
+    {
+        _isReconnecting = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnReconnected(string? connectionId)
+    {
+        _isReconnecting = false;
+        _isConnected = true;
+        await LoadConversations();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnConversationsUpdated()
+    {
+        await LoadConversations();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnForceLogout(ForceLogoutEvent evt)
+    {
+        Console.WriteLine($"[Home] ForceLogout: {evt.Reason}");
+        await InvokeAsync(async () =>
+        {
+            await HandleLogout();
+            StateHasChanged();
+        });
+    }
+
+    private async void OnUserStatusChanged(UserStatusEvent evt)
+    {
+        // Show snackbar when a user comes online
+        if (evt.IsOnline && !string.IsNullOrEmpty(evt.DisplayName))
+        {
+            await InvokeAsync(() =>
+            {
+                _snackbar?.Show($"{evt.DisplayName} is now online", Snackbar.SnackbarType.Info, 3000);
+                StateHasChanged();
+            });
+        }
+
+        // Refresh conversations to update online status
+        await InvokeAsync(async () =>
+        {
+            await LoadConversations();
+            StateHasChanged();
+        });
+    }
+
+    private async void OnMessageReceived(NewMessageEvent evt)
+    {
+
+        // Show snackbar for new message
+        await InvokeAsync(() =>
+        {
+            var preview = evt.Text.Length > 30 ? evt.Text[..30] + "..." : evt.Text;
+            _snackbar?.Show($"{evt.SenderDisplayName}: {preview}", Snackbar.SnackbarType.Success, 4000);
+            StateHasChanged();
+        });
+
+        // Refresh conversations to update unread count
+        await InvokeAsync(async () =>
+        {
+            await LoadConversations();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        _statusTimer?.Dispose();
+        _reconnectTimer?.Dispose();
+        ConnectionClient.ConnectionStatusChanged -= OnConnectionStatusChanged;
+        ConnectionClient.Reconnecting -= OnReconnecting;
+        ConnectionClient.Reconnected -= OnReconnected;
+        ChatService.OnConversationsUpdated -= OnConversationsUpdated;
+        ChatService.OnForceLogout -= OnForceLogout;
+        ChatService.OnUserStatusChanged -= OnUserStatusChanged;
+        ChatService.OnMessageReceived -= OnMessageReceived;
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}

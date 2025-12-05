@@ -1,0 +1,84 @@
+@using ChatApplication.Wasm.Models
+
+<div class="list-group-item list-group-item-action user-item" @onclick="HandleClick" style="cursor: pointer;">
+    <div class="d-flex w-100 align-items-center">
+        <div class="avatar me-3 position-relative">
+            @if (!string.IsNullOrEmpty(User.ProfilePictureUrl))
+            {
+                <img src="@User.ProfilePictureUrl" alt="avatar" class="rounded-circle" style="width: 48px; height: 48px;" />
+            }
+            else
+            {
+                <div class="avatar-placeholder rounded-circle d-flex align-items-center justify-content-center"
+                     style="width: 48px; height: 48px; background-color: #075E54; color: white; font-weight: bold;">
+                    @GetInitials(User.DisplayNameOrEmail)
+                </div>
+            }
+            @if (User.IsOnline)
+            {
+                <span class="position-absolute translate-middle p-1 bg-success border border-light rounded-circle"
+                      style="bottom: 0; right: 0;">
+                </span>
+            }
+        </div>
+        <div class="flex-grow-1">
+            <h6 class="mb-0">@User.DisplayNameOrEmail</h6>
+            <small class="@(User.IsOnline ? "text-success" : "text-muted")">
+                @if (User.IsOnline)
+                {
+                    <span>Online</span>
+                }
+                else if (User.LastSeen.HasValue)
+                {
+                    <span>Last seen @FormatLastSeen(User.LastSeen.Value)</span>
+                }
+                else
+                {
+                    <span>Offline</span>
+                }
+            </small>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public UserDto User { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<UserDto> OnClick { get; set; }
+
+    private string GetInitials(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return "?";
+
+        var parts = name.Split(' ', '@', '.').Where(p => !string.IsNullOrEmpty(p)).ToArray();
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return name[..Math.Min(2, name.Length)].ToUpper();
+    }
+
+    private string FormatLastSeen(DateTime lastSeen)
+    {
+        var local = lastSeen.ToLocalTime();
+        var now = DateTime.Now;
+        var diff = now - local;
+
+        if (diff.TotalMinutes < 1)
+            return "just now";
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24)
+            return $"{(int)diff.TotalHours}h ago";
+        if (local.Date == now.Date.AddDays(-1))
+            return "yesterday";
+
+        return local.ToString("dd/MM/yy");
+    }
+
+    private async Task HandleClick()
+    {
+        await OnClick.InvokeAsync(User);
+    }
+}

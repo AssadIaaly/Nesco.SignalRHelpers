@@ -1,0 +1,22 @@
+<div class="connection-status @StatusClass">
+    <span class="status-dot"></span>
+    <span class="status-text">@StatusText</span>
+</div>
+
+@code {
+    [Parameter]
+    public bool IsConnected { get; set; }
+
+    [Parameter]
+    public bool IsConnecting { get; set; }
+
+    [Parameter]
+    public bool IsReconnecting { get; set; }
+
+    private string StatusClass => IsConnected ? "connected" :
+        (IsConnecting || IsReconnecting) ? "connecting" : "disconnected";
+
+    private string StatusText => IsConnected ? "Connected" :
+        IsConnecting ? "Connecting..." :
+        IsReconnecting ? "Reconnecting..." : "Disconnected";
+}

@@ -1,0 +1,80 @@
+@using ChatApplication.Models
+
+<div class="conversation-item @(IsSelected ? "selected" : "")" @onclick="HandleClick">
+    <div class="conversation-avatar">
+        @if (!string.IsNullOrEmpty(Conversation.OtherUser.ProfilePictureUrl))
+        {
+            <img src="@Conversation.OtherUser.ProfilePictureUrl" alt="avatar" />
+        }
+        else
+        {
+            <div class="avatar-placeholder">
+                @GetInitials(Conversation.OtherUser.DisplayNameOrEmail)
+            </div>
+        }
+        @if (Conversation.OtherUser.IsOnline)
+        {
+            <div class="online-indicator"></div>
+        }
+    </div>
+    <div class="conversation-content">
+        <div class="conversation-header">
+            <span class="conversation-name">@Conversation.OtherUser.DisplayNameOrEmail</span>
+            <span class="conversation-time">@FormatTime(Conversation.LastMessageAt)</span>
+        </div>
+        <div class="conversation-preview">
+            @if (Conversation.UnreadCount > 0)
+            {
+                <span class="unread-badge">@(Conversation.UnreadCount > 99 ? "99+" : Conversation.UnreadCount.ToString())</span>
+            }
+            <span class="preview-text @(Conversation.UnreadCount > 0 ? "unread" : "")">
+                @(Conversation.LastMessagePreview ?? "No messages yet")
+            </span>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ConversationDto Conversation { get; set; } = null!;
+
+    [Parameter]
+    public bool IsSelected { get; set; }
+
+    [Parameter]
+    public EventCallback<ConversationDto> OnClick { get; set; }
+
+    private string GetInitials(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return "?";
+
+        var parts = name.Split(' ', '@', '.').Where(p => !string.IsNullOrEmpty(p)).ToArray();
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return name[..Math.Min(2, name.Length)].ToUpper();
+    }
+
+    private string FormatTime(DateTime? time)
+    {
+        if (!time.HasValue)
+            return "";
+
+        var local = time.Value.ToLocalTime();
+        var now = DateTime.Now;
+
+        if (local.Date == now.Date)
+            return local.ToString("HH:mm");
+        if (local.Date == now.Date.AddDays(-1))
+            return "Yesterday";
+        if ((now - local).TotalDays < 7)
+            return local.ToString("ddd");
+
+        return local.ToString("dd/MM/yy");
+    }
+
+    private async Task HandleClick()
+    {
+        await OnClick.InvokeAsync(Conversation);
+    }
+}

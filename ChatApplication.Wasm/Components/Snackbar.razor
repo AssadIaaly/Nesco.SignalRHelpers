@@ -1,0 +1,157 @@
+@if (_notifications.Any())
+{
+    <div class="snackbar-container">
+        @foreach (var notification in _notifications)
+        {
+            <div class="snackbar @notification.Type.ToString().ToLower() @(notification.IsExiting ? "exit" : "")">
+                <span class="snackbar-message">@notification.Message</span>
+                <button class="snackbar-close" @onclick="() => Dismiss(notification)">X</button>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .snackbar-container {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+        max-width: 90%;
+    }
+
+    .snackbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        animation: slideIn 0.3s ease-out;
+        min-width: 280px;
+        max-width: 400px;
+    }
+
+    .snackbar.exit {
+        animation: slideOut 0.3s ease-in forwards;
+    }
+
+    .snackbar.info {
+        background-color: #323232;
+        color: white;
+    }
+
+    .snackbar.success {
+        background-color: #25D366;
+        color: white;
+    }
+
+    .snackbar.warning {
+        background-color: #ffc107;
+        color: black;
+    }
+
+    .snackbar.error {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    .snackbar-message {
+        flex: 1;
+        margin-right: 12px;
+        font-size: 0.9rem;
+    }
+
+    .snackbar-close {
+        background: none;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        padding: 4px 8px;
+        opacity: 0.7;
+        font-weight: bold;
+    }
+
+    .snackbar-close:hover {
+        opacity: 1;
+    }
+
+    @@keyframes slideIn {
+        from {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    @@keyframes slideOut {
+        from {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+    }
+</style>
+
+@code {
+    private List<SnackbarNotification> _notifications = new();
+    private int _nextId = 0;
+
+    public enum SnackbarType
+    {
+        Info,
+        Success,
+        Warning,
+        Error
+    }
+
+    public void Show(string message, SnackbarType type = SnackbarType.Info, int durationMs = 4000)
+    {
+        var notification = new SnackbarNotification
+        {
+            Id = _nextId++,
+            Message = message,
+            Type = type,
+            IsExiting = false
+        };
+
+        _notifications.Add(notification);
+        StateHasChanged();
+
+        // Auto dismiss after duration
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(durationMs);
+            await InvokeAsync(() => Dismiss(notification));
+        });
+    }
+
+    private async Task Dismiss(SnackbarNotification notification)
+    {
+        notification.IsExiting = true;
+        StateHasChanged();
+
+        await Task.Delay(300); // Wait for exit animation
+
+        _notifications.Remove(notification);
+        StateHasChanged();
+    }
+
+    private class SnackbarNotification
+    {
+        public int Id { get; set; }
+        public string Message { get; set; } = "";
+        public SnackbarType Type { get; set; }
+        public bool IsExiting { get; set; }
+    }
+}

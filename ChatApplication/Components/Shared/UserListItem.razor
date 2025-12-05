@@ -1,0 +1,79 @@
+@using ChatApplication.Models
+
+<div class="user-item" @onclick="HandleClick">
+    <div class="user-avatar">
+        @if (!string.IsNullOrEmpty(User.ProfilePictureUrl))
+        {
+            <img src="@User.ProfilePictureUrl" alt="avatar" />
+        }
+        else
+        {
+            <div class="avatar-placeholder">
+                @GetInitials(User.DisplayNameOrEmail)
+            </div>
+        }
+        @if (User.IsOnline)
+        {
+            <div class="online-indicator"></div>
+        }
+    </div>
+    <div class="user-content">
+        <div class="user-name">@User.DisplayNameOrEmail</div>
+        <div class="user-status">
+            @if (User.IsOnline)
+            {
+                <span class="status-online">Online</span>
+            }
+            else if (User.LastSeen.HasValue)
+            {
+                <span class="status-offline">Last seen @FormatLastSeen(User.LastSeen.Value)</span>
+            }
+            else
+            {
+                <span class="status-offline">Offline</span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public UserDto User { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<UserDto> OnClick { get; set; }
+
+    private string GetInitials(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return "?";
+
+        var parts = name.Split(' ', '@', '.').Where(p => !string.IsNullOrEmpty(p)).ToArray();
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return name[..Math.Min(2, name.Length)].ToUpper();
+    }
+
+    private string FormatLastSeen(DateTime lastSeen)
+    {
+        var local = lastSeen.ToLocalTime();
+        var now = DateTime.Now;
+        var diff = now - local;
+
+        if (diff.TotalMinutes < 1)
+            return "just now";
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24)
+            return $"{(int)diff.TotalHours}h ago";
+        if (local.Date == now.Date.AddDays(-1))
+            return "yesterday";
+
+        return local.ToString("dd/MM/yy");
+    }
+
+    private async Task HandleClick()
+    {
+        await OnClick.InvokeAsync(User);
+    }
+}

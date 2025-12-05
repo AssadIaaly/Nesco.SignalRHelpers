@@ -1,0 +1,87 @@
+@using ChatApplication.Wasm.Models
+
+<div class="list-group-item list-group-item-action conversation-item @(IsSelected ? "active" : "")" @onclick="HandleClick" style="cursor: pointer;">
+    <div class="d-flex w-100 align-items-center">
+        <div class="avatar me-3">
+            @if (!string.IsNullOrEmpty(Conversation.OtherUser.ProfilePictureUrl))
+            {
+                <img src="@Conversation.OtherUser.ProfilePictureUrl" alt="avatar" class="rounded-circle" style="width: 48px; height: 48px;" />
+            }
+            else
+            {
+                <div class="avatar-placeholder rounded-circle d-flex align-items-center justify-content-center"
+                     style="width: 48px; height: 48px; background-color: #075E54; color: white; font-weight: bold;">
+                    @GetInitials(Conversation.OtherUser.DisplayNameOrEmail)
+                </div>
+            }
+            @if (Conversation.OtherUser.IsOnline)
+            {
+                <span class="position-absolute translate-middle p-1 bg-success border border-light rounded-circle"
+                      style="bottom: 0; right: 0;">
+                </span>
+            }
+        </div>
+        <div class="flex-grow-1 min-width-0">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 text-truncate">@Conversation.OtherUser.DisplayNameOrEmail</h6>
+                <small class="text-muted">@FormatTime(Conversation.LastMessageAt)</small>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+                <p class="mb-0 text-muted text-truncate small @(Conversation.UnreadCount > 0 ? "fw-bold" : "")">
+                    @(Conversation.LastMessagePreview ?? "No messages yet")
+                </p>
+                @if (Conversation.UnreadCount > 0)
+                {
+                    <span class="badge bg-success rounded-pill">
+                        @(Conversation.UnreadCount > 99 ? "99+" : Conversation.UnreadCount.ToString())
+                    </span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ConversationDto Conversation { get; set; } = null!;
+
+    [Parameter]
+    public bool IsSelected { get; set; }
+
+    [Parameter]
+    public EventCallback<ConversationDto> OnClick { get; set; }
+
+    private string GetInitials(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return "?";
+
+        var parts = name.Split(' ', '@', '.').Where(p => !string.IsNullOrEmpty(p)).ToArray();
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return name[..Math.Min(2, name.Length)].ToUpper();
+    }
+
+    private string FormatTime(DateTime? time)
+    {
+        if (!time.HasValue)
+            return "";
+
+        var local = time.Value.ToLocalTime();
+        var now = DateTime.Now;
+
+        if (local.Date == now.Date)
+            return local.ToString("HH:mm");
+        if (local.Date == now.Date.AddDays(-1))
+            return "Yesterday";
+        if ((now - local).TotalDays < 7)
+            return local.ToString("ddd");
+
+        return local.ToString("dd/MM/yy");
+    }
+
+    private async Task HandleClick()
+    {
+        await OnClick.InvokeAsync(Conversation);
+    }
+}

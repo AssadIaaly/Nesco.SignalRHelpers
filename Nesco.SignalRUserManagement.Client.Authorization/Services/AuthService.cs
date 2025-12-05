@@ -60,6 +60,32 @@ public class AuthService
         }
     }
 
+    /// <summary>
+    /// Checks if a user is already connected from another client before logging in.
+    /// This allows the client to show a confirmation dialog asking if they want to force logout other sessions.
+    /// </summary>
+    /// <param name="email">The user's email</param>
+    /// <param name="password">The user's password</param>
+    /// <returns>Connection status if credentials are valid, null if credentials are invalid</returns>
+    public async Task<CheckConnectionResult?> CheckConnectionAsync(string email, string password)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/auth/check-connection", new { email, password });
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<CheckConnectionResult>();
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public async Task LogoutAsync()
     {
         _accessToken = null;
