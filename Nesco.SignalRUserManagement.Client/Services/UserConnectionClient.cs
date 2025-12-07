@@ -98,37 +98,62 @@ public class UserConnectionClient : IAsyncDisposable
         Func<Task<string>>? accessTokenProvider = null,
         Action<HttpConnectionOptions>? configureOptions = null)
     {
+        _logger.LogInformation("StartAsync called with URL: {HubUrl}", hubUrl);
+
         if (string.IsNullOrEmpty(hubUrl))
+        {
+            _logger.LogError("Hub URL is null or empty");
             throw new ArgumentException("Hub URL is required", nameof(hubUrl));
+        }
 
         if (_connection != null)
         {
+            _logger.LogDebug("Existing connection found, state: {State}", _connection.State);
             if (_connection.State == HubConnectionState.Connected)
             {
-                _logger.LogWarning("Already connected");
+                _logger.LogWarning("Already connected, returning early");
                 return;
             }
 
             // Dispose existing connection before creating a new one
+            _logger.LogDebug("Disposing existing connection");
             await _connection.DisposeAsync();
             _connection = null;
         }
 
-        _logger.LogInformation("Starting connection to {Url}", hubUrl);
+        _logger.LogInformation("Building new connection to {Url}", hubUrl);
 
-        var builder = new HubConnectionBuilder()
-            .WithUrl(hubUrl, options =>
-            {
-                if (accessTokenProvider != null)
+        try
+        {
+            _logger.LogDebug("Creating HubConnectionBuilder");
+
+            var builder = new HubConnectionBuilder()
+                .WithUrl(hubUrl, options =>
                 {
-                    options.AccessTokenProvider = accessTokenProvider;
-                }
+                    _logger.LogDebug("Configuring URL options, accessTokenProvider: {HasProvider}",
+                        accessTokenProvider != null);
 
-                configureOptions?.Invoke(options);
-            })
-            .WithAutomaticReconnect(_options.ReconnectDelaysSeconds.Select(s => TimeSpan.FromSeconds(s)).ToArray());
+                    if (accessTokenProvider != null)
+                    {
+                        options.AccessTokenProvider = accessTokenProvider;
+                        _logger.LogDebug("AccessTokenProvider configured");
+                    }
 
-        _connection = builder.Build();
+                    _logger.LogDebug("Invoking configureOptions callback");
+                    configureOptions?.Invoke(options);
+                    _logger.LogDebug("configureOptions callback completed");
+                })
+                .WithAutomaticReconnect(_options.ReconnectDelaysSeconds.Select(s => TimeSpan.FromSeconds(s)).ToArray());
+
+            _logger.LogDebug("Building HubConnection");
+            _connection = builder.Build();
+            _logger.LogDebug("HubConnection built successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error building HubConnection: {Message}", ex.Message);
+            throw;
+        }
 
         // Register internal ping handler for connection validation
         RegisterPingHandler();
@@ -164,6 +189,66 @@ public class UserConnectionClient : IAsyncDisposable
         };
 
         await ConnectWithRetryAsync();
+    }
+
+    /// <summary>
+    /// Starts the connection to the hub with cookie authentication support.
+    /// Use this overload for Blazor WebAssembly apps with cookie-based authentication.
+    /// Cookies are automatically included via the browser's fetch API with credentials: 'include'.
+    /// </summary>
+    /// <param name="hubUrl">Hub URL (required)</param>
+    /// <param name="configureOptions">Optional: configure additional HTTP connection options</param>
+    /// <example>
+    /// <code>
+    /// // In a Blazor WebAssembly component
+    /// await _connectionClient.StartWithCookiesAsync("https://localhost:5001/hubs/usermanagement");
+    /// </code>
+    /// </example>
+    public Task StartWithCookiesAsync(
+        string hubUrl,
+        Action<HttpConnectionOptions>? configureOptions = null)
+    {
+        _logger.LogDebug("StartWithCookiesAsync called with URL: {HubUrl}", hubUrl);
+
+        return StartAsync(hubUrl, accessTokenProvider: null, options =>
+        {
+            _logger.LogDebug("Configuring HttpConnectionOptions for cookie authentication");
+
+            // For Blazor WebAssembly, we need to use the browser's fetch API with credentials
+            // This is done by setting up a custom HttpMessageHandlerFactory
+            options.HttpMessageHandlerFactory = innerHandler =>
+            {
+                _logger.LogDebug("HttpMessageHandlerFactory called, innerHandler type: {HandlerType}", innerHandler?.GetType().FullName ?? "null");
+
+                // Check if we're running in WebAssembly (BrowserHttpHandler)
+                if (innerHandler?.GetType().Name == "BrowserHttpHandler")
+                {
+                    _logger.LogDebug("Detected BrowserHttpHandler, setting DefaultBrowserCredentialsEnabled");
+                    // Use reflection to set credentials since the type is internal
+                    var credentialsProp = innerHandler.GetType().GetProperty("DefaultBrowserCredentialsEnabled");
+                    if (credentialsProp != null)
+                    {
+                        credentialsProp.SetValue(innerHandler, true);
+                        _logger.LogDebug("DefaultBrowserCredentialsEnabled set to true");
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Could not find DefaultBrowserCredentialsEnabled property");
+                    }
+                }
+                else if (innerHandler != null)
+                {
+                    _logger.LogDebug("Non-browser handler detected: {HandlerType}", innerHandler.GetType().FullName);
+                }
+
+                return innerHandler!;
+            };
+
+            // Apply any additional configuration
+            configureOptions?.Invoke(options);
+
+            _logger.LogDebug("HttpConnectionOptions configuration complete");
+        });
     }
 
     /// <summary>

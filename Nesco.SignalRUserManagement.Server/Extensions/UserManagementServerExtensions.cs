@@ -280,4 +280,55 @@ public static class UserManagementServerExtensions
         var finalPattern = pattern ?? "/hubs/usermanagement";
         return endpoints.MapHub<THub>(finalPattern);
     }
+
+    /// <summary>
+    /// Maps the SignalR User Management Hub with cookie authentication support.
+    /// Use this overload for Blazor Server/WebAssembly apps that use cookie-based authentication.
+    /// </summary>
+    /// <param name="endpoints">Endpoint route builder</param>
+    /// <param name="pattern">Optional hub path override. If null, uses "/hubs/usermanagement".</param>
+    /// <example>
+    /// <code>
+    /// // In Program.cs for Blazor apps with Identity cookie authentication
+    /// app.MapSignalRUserManagementWithCookies();
+    /// </code>
+    /// </example>
+    public static HubEndpointConventionBuilder MapSignalRUserManagementWithCookies(
+        this IEndpointRouteBuilder endpoints,
+        string? pattern = null)
+    {
+        var finalPattern = pattern ?? "/hubs/usermanagement";
+        return endpoints.MapHub<UserManagementHub>(finalPattern);
+    }
+
+    /// <summary>
+    /// Maps a custom hub that inherits from UserManagementHub with cookie authentication support.
+    /// Use this overload for Blazor Server/WebAssembly apps that use cookie-based authentication.
+    /// </summary>
+    /// <typeparam name="THub">Custom hub type that inherits from UserManagementHub</typeparam>
+    /// <param name="endpoints">Endpoint route builder</param>
+    /// <param name="pattern">Optional hub path override. Defaults to /hubs/usermanagement.</param>
+    /// <example>
+    /// <code>
+    /// // Create a custom hub with additional methods
+    /// public class AppHub : UserManagementHub
+    /// {
+    ///     public AppHub(InMemoryConnectionTracker tracker, ILogger&lt;UserManagementHub&gt; logger,
+    ///         IResponseManager? responseManager = null) : base(tracker, logger, responseManager) { }
+    ///
+    ///     public Task&lt;string&gt; GetServerTime() => Task.FromResult(DateTime.UtcNow.ToString("O"));
+    /// }
+    ///
+    /// // Map the custom hub with cookie auth
+    /// app.MapSignalRUserManagementWithCookies&lt;AppHub&gt;();
+    /// </code>
+    /// </example>
+    public static HubEndpointConventionBuilder MapSignalRUserManagementWithCookies<THub>(
+        this IEndpointRouteBuilder endpoints,
+        string? pattern = null)
+        where THub : Hub
+    {
+        var finalPattern = pattern ?? "/hubs/usermanagement";
+        return endpoints.MapHub<THub>(finalPattern);
+    }
 }

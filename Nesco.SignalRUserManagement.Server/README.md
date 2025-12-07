@@ -245,6 +245,92 @@ public class ClientResponse
 
 ---
 
+## Cookie Authentication Setup (Blazor Web Apps)
+
+For Blazor Web Apps using ASP.NET Core Identity with cookie authentication:
+
+### 1. Configure Services
+
+```csharp
+using Microsoft.AspNetCore.SignalR;
+using Nesco.SignalRUserManagement.Server.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add Identity with cookies (standard Blazor Web App setup)
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = IdentityConstants.ApplicationScheme;
+    options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+})
+.AddIdentityCookies();
+
+// Add SignalR User Management
+builder.Services.AddSignalRUserManagement(options =>
+{
+    options.HubPath = "/hubs/usermanagement";
+    options.EnableCommunicator = true;
+    options.EnableDashboard = true;
+});
+
+// IMPORTANT: Add custom UserIdProvider for cookie authentication
+// ASP.NET Core Identity uses NameIdentifier claim for user ID
+builder.Services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
+```
+
+### 2. Create the UserIdProvider
+
+```csharp
+using System.Security.Claims;
+using Microsoft.AspNetCore.SignalR;
+
+public class NameIdentifierUserIdProvider : IUserIdProvider
+{
+    public string? GetUserId(HubConnectionContext connection)
+    {
+        // ASP.NET Core Identity uses NameIdentifier for the user ID
+        return connection.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    }
+}
+```
+
+### 3. Map the Hub with Cookie Support
+
+```csharp
+var app = builder.Build();
+
+// ... other middleware
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Map SignalR hub with cookie authentication
+app.MapSignalRUserManagementWithCookies();
+
+// Or with a custom hub:
+// app.MapSignalRUserManagementWithCookies<MyCustomHub>();
+
+app.Run();
+```
+
+### 4. Register Client Services for Prerendering (Optional)
+
+If your Blazor Web App uses WebAssembly components that need prerendering:
+
+```csharp
+using Nesco.SignalRUserManagement.Client.Handlers;
+
+// Register client services for server-side prerendering support
+builder.Services.AddSignalRUserManagementClientWithHandlers(
+    typeof(YourClientApp._Imports).Assembly,
+    options =>
+    {
+        options.EnableFileUpload = false;
+    });
+```
+
+---
+
 ## JWT Authentication Setup
 
 For standalone clients (WebAssembly, MAUI) connecting cross-origin:

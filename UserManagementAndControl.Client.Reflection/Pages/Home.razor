@@ -1,0 +1,311 @@
+@page "/"
+@inject AuthService AuthService
+@inject UserConnectionClient ConnectionClient
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>SignalR Reflection Client</PageTitle>
+
+@if (!_isAuthenticated)
+{
+    <div class="text-center mt-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Checking authentication...</p>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1>SignalR Reflection-Based Client Demo</h1>
+            <p class="text-muted">This client uses automatic handler discovery via reflection.</p>
+        </div>
+        <div>
+            <span class="me-3">Welcome, <strong>@_username</strong></span>
+            <button class="btn btn-outline-danger btn-sm" @onclick="HandleLogout">Logout</button>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Connection Status</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <td><strong>Status:</strong></td>
+                            <td>
+                                @if (_isConnected)
+                                {
+                                    <span class="badge bg-success">Connected</span>
+                                }
+                                else if (_isConnecting)
+                                {
+                                    <span class="badge bg-warning">
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                        Connecting...
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Disconnected</span>
+                                }
+                            </td>
+                        </tr>
+                        @if (_isConnected && !string.IsNullOrEmpty(_connectionId))
+                        {
+                            <tr>
+                                <td><strong>Connection ID:</strong></td>
+                                <td><code class="text-primary">@_connectionId</code></td>
+                            </tr>
+                        }
+                        <tr>
+                            <td><strong>Hub URL:</strong></td>
+                            <td><small>@_hubUrl</small></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Registered Handlers (Auto-Discovered)</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">Methods available via <code>ISignalRHandler</code>:</p>
+                    <p class="mb-0">
+                        <code>Ping</code>, <code>Echo</code>, <code>Alert</code>, <code>Navigate</code>,
+                        <code>GetClientInfo</code>, <code>Calculate</code>, <code>GetLargeData</code>, <code>Logout</code>
+                    </p>
+                    <hr class="my-2"/>
+                    <small class="text-muted">
+                        See <code>SignalRHandlers/AppSignalRHandlers.cs</code> for implementation.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">How It Works</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>1. Create a Handler Class</h6>
+                            <pre class="bg-light p-2"><code>public class AppSignalRHandlers : ISignalRHandler
+{
+    public Task&lt;object?&gt; Ping(PingRequest? req)
+    {
+        return Task.FromResult&lt;object?&gt;(
+            new { message = "Pong" });
+    }
+}</code></pre>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>2. Register in Program.cs</h6>
+                            <pre class="bg-light p-2"><code>builder.Services.AddSignalRUserManagementClientWithHandlers(
+    handlers =>
+    {
+        handlers.AssembliesToScan.Add(
+            typeof(Program).Assembly);
+    });</code></pre>
+                        </div>
+                    </div>
+                    <div class="alert alert-success mt-3 mb-0">
+                        <strong>That's it!</strong> Method names in your handler class automatically map to SignalR method names.
+                        No switch statements, no manual registration.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">API Reference - Available Methods</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">These methods can be invoked <strong>from the server</strong> on this client:</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 150px;">Method</th>
+                                    <th style="width: 200px;">Parameter</th>
+                                    <th>Description</th>
+                                    <th style="width: 400px;">Example Response</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>Ping</code></td>
+                                    <td><em>none</em></td>
+                                    <td>Simple connectivity check</td>
+                                    <td><code>{ message: "Pong", timestamp: "..." }</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>Echo</code></td>
+                                    <td><code>{ Message: string }</code></td>
+                                    <td>Echoes back the message</td>
+                                    <td><code>{ echo: "Hello", receivedAt: "..." }</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>Alert</code></td>
+                                    <td><code>{ Title: string, Message: string }</code></td>
+                                    <td>Acknowledges an alert</td>
+                                    <td><code>{ acknowledged: true, title: "..." }</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>Navigate</code></td>
+                                    <td><code>{ Url: string }</code></td>
+                                    <td>Acknowledges navigation request</td>
+                                    <td><code>{ willNavigate: true, url: "..." }</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>GetClientInfo</code></td>
+                                    <td><em>none</em></td>
+                                    <td>Returns client platform info</td>
+                                    <td><code>{ platform: "Blazor WebAssembly", ... }</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>Calculate</code></td>
+                                    <td><code>{ A: number, B: number, Operation: string }</code></td>
+                                    <td>Performs arithmetic (+, -, *, /)</td>
+                                    <td><code>{ a: 5, b: 3, operation: "+", result: 8 }</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>GetLargeData</code></td>
+                                    <td><code>{ ItemCount: number }</code></td>
+                                    <td>Generates large dataset (tests file upload)</td>
+                                    <td><code>{ itemCount: 1000, items: [...] }</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>Logout</code></td>
+                                    <td><em>none</em></td>
+                                    <td>Logs out the user</td>
+                                    <td><code>{ loggedOut: true, timestamp: "..." }</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">Testing</h5>
+                </div>
+                <div class="card-body">
+                    <ol class="mb-0">
+                        <li>Ensure connection shows <span class="badge bg-success">Connected</span></li>
+                        <li>Go to server at <code>http://localhost:5000/signalr-test</code></li>
+                        <li>Find this client and invoke methods like <code>Ping</code>, <code>Echo</code>, etc.</li>
+                        <li>Check browser console for handler execution logs</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isAuthenticated;
+    private string _username = string.Empty;
+    private bool _isConnected;
+    private bool _isConnecting;
+    private string _connectionId = string.Empty;
+    private string _hubUrl = "http://localhost:5000/hubs/usermanagement";
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConnectionClient.MethodCompleted += OnMethodCompleted;
+        ConnectionClient.ConnectionStatusChanged += OnConnectionStatusChanged;
+
+        _isAuthenticated = AuthService.IsAuthenticated;
+        if (!_isAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        _username = AuthService.CurrentUser.Identity?.Name ?? "Unknown";
+        UpdateConnectionState();
+
+        if (!ConnectionClient.IsConnected && !string.IsNullOrEmpty(AuthService.AccessToken))
+        {
+            await StartConnection();
+        }
+    }
+
+    private async Task StartConnection()
+    {
+        _isConnecting = true;
+        StateHasChanged();
+
+        try
+        {
+            await ConnectionClient.StartAsync(
+                _hubUrl,
+                () => Task.FromResult(AuthService.AccessToken!));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Connection failed: {ex.Message}");
+            _isConnecting = false;
+        }
+    }
+
+    private void OnMethodCompleted(string methodName, bool success)
+    {
+        if (methodName == "Logout")
+        {
+            InvokeAsync(async () =>
+            {
+                await HandleLogout();
+                StateHasChanged();
+            });
+        }
+    }
+
+    private async void OnConnectionStatusChanged(bool isConnected)
+    {
+        _isConnecting = false;
+        UpdateConnectionState();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateConnectionState()
+    {
+        _isConnected = ConnectionClient.IsConnected;
+        _connectionId = _isConnected ? ConnectionClient.ConnectionId ?? string.Empty : string.Empty;
+    }
+
+    private async Task HandleLogout()
+    {
+        await ConnectionClient.StopAsync();
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login");
+    }
+
+    public void Dispose()
+    {
+        ConnectionClient.ConnectionStatusChanged -= OnConnectionStatusChanged;
+        ConnectionClient.MethodCompleted -= OnMethodCompleted;
+    }
+}

@@ -1,0 +1,148 @@
+@* =============================================================================
+   RenderMode: InteractiveWebAssembly
+   This page runs entirely in the browser via WebAssembly.
+   It connects to SignalR using cookie authentication and demonstrates
+   client-side SignalR functionality including method invocation from server.
+============================================================================= *@
+@page "/signalr-demo"
+@rendermode InteractiveWebAssembly
+@using Microsoft.AspNetCore.Authorization
+@using Nesco.SignalRUserManagement.Client.Services
+@inject UserConnectionClient ConnectionClient
+@inject NavigationManager NavigationManager
+@attribute [Authorize]
+
+<PageTitle>SignalR Demo</PageTitle>
+
+<h1>SignalR Connection Demo</h1>
+
+<div class="card mb-3">
+    <div class="card-header">
+        Connection Status
+    </div>
+    <div class="card-body">
+        <p>
+            <strong>Status:</strong>
+            <span class="badge @(ConnectionClient.IsConnected ? "bg-success" : "bg-danger")">
+                @(ConnectionClient.IsConnected ? "Connected" : "Disconnected")
+            </span>
+        </p>
+        @if (ConnectionClient.IsConnected)
+        {
+            <p><strong>Connection ID:</strong> @ConnectionClient.ConnectionId</p>
+        }
+    </div>
+</div>
+
+<div class="mb-3">
+    @if (!ConnectionClient.IsConnected)
+    {
+        <button class="btn btn-primary" @onclick="ConnectAsync" disabled="@_isConnecting">
+            @if (_isConnecting)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span>Connecting...</span>
+            }
+            else
+            {
+                <span>Connect to SignalR Hub</span>
+            }
+        </button>
+    }
+    else
+    {
+        <button class="btn btn-danger" @onclick="DisconnectAsync">Disconnect</button>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @_errorMessage
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_statusMessage))
+{
+    <div class="alert alert-info" role="alert">
+        @_statusMessage
+    </div>
+}
+
+@code {
+    private bool _isConnecting;
+    private string? _errorMessage;
+    private string? _statusMessage;
+
+    protected override void OnInitialized()
+    {
+        ConnectionClient.ConnectionChanged += OnConnectionChanged;
+        ConnectionClient.Reconnecting += OnReconnecting;
+        ConnectionClient.Reconnected += OnReconnected;
+    }
+
+    private async Task ConnectAsync()
+    {
+        _isConnecting = true;
+        _errorMessage = null;
+        _statusMessage = "Connecting...";
+        StateHasChanged();
+
+        try
+        {
+            // Build the hub URL from the current base URI
+            var hubUrl = NavigationManager.ToAbsoluteUri("/hubs/usermanagement").ToString();
+
+            // Connect using cookies (authentication is handled automatically)
+            await ConnectionClient.StartWithCookiesAsync(hubUrl);
+            _statusMessage = "Connected successfully!";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to connect: {ex.Message}";
+            _statusMessage = null;
+        }
+        finally
+        {
+            _isConnecting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DisconnectAsync()
+    {
+        try
+        {
+            await ConnectionClient.StopAsync();
+            _statusMessage = "Disconnected.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error disconnecting: {ex.Message}";
+        }
+    }
+
+    private void OnConnectionChanged(bool isConnected)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnReconnecting()
+    {
+        _statusMessage = "Reconnecting...";
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnReconnected(string? connectionId)
+    {
+        _statusMessage = $"Reconnected with ID: {connectionId}";
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ConnectionClient.ConnectionChanged -= OnConnectionChanged;
+        ConnectionClient.Reconnecting -= OnReconnecting;
+        ConnectionClient.Reconnected -= OnReconnected;
+    }
+}

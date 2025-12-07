@@ -32,6 +32,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatApplication.Server", "C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatApplication.Wasm", "ChatApplication.Wasm\ChatApplication.Wasm.csproj", "{DABB5DB3-8AD4-465A-997E-00E09C7A8222}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserManagementAndControl.Client.Reflection", "UserManagementAndControl.Client.Reflection\UserManagementAndControl.Client.Reflection.csproj", "{3E950BB4-898E-4C3D-B275-D30DAC96A087}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserManagementAndControl.BlazorApp", "UserManagementAndControl.BlazorApp\UserManagementAndControl.BlazorApp\UserManagementAndControl.BlazorApp.csproj", "{A3CE0ECB-212D-4812-AD25-BE608AB13DED}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserManagementAndControl.BlazorApp.Client", "UserManagementAndControl.BlazorApp\UserManagementAndControl.BlazorApp.Client\UserManagementAndControl.BlazorApp.Client.csproj", "{CE22BAF1-6C27-405A-A3B4-996B1F00DB87}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -102,5 +108,17 @@ Global
 		{DABB5DB3-8AD4-465A-997E-00E09C7A8222}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DABB5DB3-8AD4-465A-997E-00E09C7A8222}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DABB5DB3-8AD4-465A-997E-00E09C7A8222}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3E950BB4-898E-4C3D-B275-D30DAC96A087}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3E950BB4-898E-4C3D-B275-D30DAC96A087}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3E950BB4-898E-4C3D-B275-D30DAC96A087}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3E950BB4-898E-4C3D-B275-D30DAC96A087}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3CE0ECB-212D-4812-AD25-BE608AB13DED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3CE0ECB-212D-4812-AD25-BE608AB13DED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3CE0ECB-212D-4812-AD25-BE608AB13DED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3CE0ECB-212D-4812-AD25-BE608AB13DED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CE22BAF1-6C27-405A-A3B4-996B1F00DB87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE22BAF1-6C27-405A-A3B4-996B1F00DB87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE22BAF1-6C27-405A-A3B4-996B1F00DB87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE22BAF1-6C27-405A-A3B4-996B1F00DB87}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
