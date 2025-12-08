@@ -9,7 +9,6 @@
 @using Microsoft.AspNetCore.Authorization
 @using Nesco.SignalRUserManagement.Client.Services
 @inject UserConnectionClient ConnectionClient
-@inject NavigationManager NavigationManager
 @attribute [Authorize]
 
 <PageTitle>SignalR Demo</PageTitle>
@@ -90,11 +89,8 @@
 
         try
         {
-            // Build the hub URL from the current base URI
-            var hubUrl = NavigationManager.ToAbsoluteUri("/hubs/usermanagement").ToString();
-
-            // Connect using cookies (authentication is handled automatically)
-            await ConnectionClient.StartWithCookiesAsync(hubUrl);
+            // Connect using cookies - HubUrl is pre-configured in Program.cs
+            await ConnectionClient.StartWithCookiesAsync();
             _statusMessage = "Connected successfully!";
         }
         catch (Exception ex)

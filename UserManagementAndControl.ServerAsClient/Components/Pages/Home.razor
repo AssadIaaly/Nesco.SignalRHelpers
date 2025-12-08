@@ -106,7 +106,7 @@ else
                         }
                         <tr>
                             <td><strong>Hub URL:</strong></td>
-                            <td><small>@_hubUrl</small></td>
+                            <td><small>@ConnectionClient.ConfiguredHubUrl</small></td>
                         </tr>
                         <tr>
                             <td><strong>Client Type:</strong></td>
@@ -540,7 +540,6 @@ else
     private bool _isConnecting;
     private bool _isReconnecting;
     private string _connectionId = string.Empty;
-    private string _hubUrl = "http://localhost:5000/hubs/usermanagement";
     private System.Threading.Timer? _statusTimer;
     private System.Threading.Timer? _reconnectTimer;
     private IEnumerable<MethodInvocationLog> _methodLogs = Enumerable.Empty<MethodInvocationLog>();
@@ -649,8 +648,7 @@ else
         try
         {
             await ConnectionClient.StartAsync(
-                _hubUrl,
-                () => Task.FromResult(AuthService.AccessToken!));
+                accessTokenProvider: () => Task.FromResult(AuthService.AccessToken!));
         }
         catch (Exception ex)
         {
@@ -679,8 +677,7 @@ else
                 try
                 {
                     await ConnectionClient.StartAsync(
-                        _hubUrl,
-                        () => Task.FromResult(AuthService.AccessToken!));
+                        accessTokenProvider: () => Task.FromResult(AuthService.AccessToken!));
                 }
                 catch (Exception retryEx)
                 {

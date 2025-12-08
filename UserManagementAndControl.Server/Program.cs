@@ -111,6 +111,8 @@ builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSe
 // ============================================================================
 builder.Services.AddSignalRUserManagement<AppHub>(options =>
 {
+    options.EnableCommunicator = true; // Required for file upload support and method invocation
+    options.EnableDashboard = true; // Enable the dashboard component
     options.RequestTimeoutSeconds = 30;
     options.MaxConcurrentRequests = 20;
     options.AutoDeleteTempFiles = true;

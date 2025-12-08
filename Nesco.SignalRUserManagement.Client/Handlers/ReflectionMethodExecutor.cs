@@ -29,9 +29,9 @@ public class ReflectionMethodExecutor : IMethodExecutor
 
     /// <summary>
     /// Event raised when a method execution completes.
-    /// Parameters: methodName, result, duration, error
+    /// Parameters: methodName, parameter, result, duration, error
     /// </summary>
-    public event Action<string, object?, TimeSpan, Exception?>? OnMethodCompleted;
+    public event Action<string, object?, object?, TimeSpan, Exception?>? OnMethodCompleted;
 
     public ReflectionMethodExecutor(
         IServiceProvider serviceProvider,
@@ -186,7 +186,7 @@ public class ReflectionMethodExecutor : IMethodExecutor
         finally
         {
             var duration = DateTime.UtcNow - startTime;
-            OnMethodCompleted?.Invoke(methodName, result, duration, error);
+            OnMethodCompleted?.Invoke(methodName, parameter, result, duration, error);
         }
     }
 

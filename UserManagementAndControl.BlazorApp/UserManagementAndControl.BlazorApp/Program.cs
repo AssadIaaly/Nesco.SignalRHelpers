@@ -63,6 +63,8 @@ builder.Services.AddSignalRUserManagementClientWithHandlers(
     typeof(UserManagementAndControl.BlazorApp.Client._Imports).Assembly,
     options =>
     {
+        // Configure HubUrl for prerendering (will be overridden by client-side config at runtime)
+        options.HubUrl = "/hubs/usermanagement";
         options.EnableFileUpload = false;
     });
 

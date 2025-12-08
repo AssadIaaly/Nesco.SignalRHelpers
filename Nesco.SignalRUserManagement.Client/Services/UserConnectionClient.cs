@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Nesco.SignalRUserManagement.Core.Interfaces;
 using Nesco.SignalRUserManagement.Core.Models;
 using Nesco.SignalRUserManagement.Core.Options;
+using Nesco.SignalRUserManagement.Client.Handlers;
 using System.Text.Json;
 
 namespace Nesco.SignalRUserManagement.Client.Services;
@@ -54,6 +55,13 @@ public class UserConnectionClient : IAsyncDisposable
     public event Action<string, bool>? MethodCompleted;
 
     /// <summary>
+    /// Raised after a method execution completes with full details.
+    /// Parameters: methodName, parameter, result, duration, error
+    /// Subscribe to this event for logging method invocations.
+    /// </summary>
+    public event Action<string, object?, object?, TimeSpan, Exception?>? MethodExecutionCompleted;
+
+    /// <summary>
     /// Current connection state
     /// </summary>
     public HubConnectionState State => _connection?.State ?? HubConnectionState.Disconnected;
@@ -85,6 +93,52 @@ public class UserConnectionClient : IAsyncDisposable
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _communicatorOptions = communicatorOptions?.Value ?? new CommunicatorOptions();
         _methodExecutor = methodExecutor;
+
+        // Subscribe to ReflectionMethodExecutor's OnMethodCompleted event to forward to MethodExecutionCompleted
+        if (_methodExecutor is ReflectionMethodExecutor reflectionExecutor)
+        {
+            reflectionExecutor.OnMethodCompleted += (methodName, parameter, result, duration, error) =>
+            {
+                MethodExecutionCompleted?.Invoke(methodName, parameter, result, duration, error);
+            };
+        }
+    }
+
+    /// <summary>
+    /// Gets the configured Hub URL from options
+    /// </summary>
+    public string? ConfiguredHubUrl => string.IsNullOrEmpty(_options.HubUrl) ? null : _options.HubUrl;
+
+    /// <summary>
+    /// Starts the connection to the hub using the pre-configured HubUrl from options.
+    /// </summary>
+    /// <param name="accessTokenProvider">Optional function to get the access token (for JWT auth)</param>
+    /// <param name="configureOptions">Optional: configure additional HTTP connection options</param>
+    /// <exception cref="InvalidOperationException">Thrown when HubUrl is not configured in options</exception>
+    /// <example>
+    /// <code>
+    /// // Configure in Program.cs
+    /// builder.Services.AddSignalRUserManagementClientWithHandlers(options =>
+    /// {
+    ///     options.HubUrl = "https://localhost:5001/hubs/usermanagement";
+    /// });
+    ///
+    /// // Then in component, no URL needed
+    /// await ConnectionClient.StartAsync();
+    /// </code>
+    /// </example>
+    public Task StartAsync(
+        Func<Task<string>>? accessTokenProvider = null,
+        Action<HttpConnectionOptions>? configureOptions = null)
+    {
+        if (string.IsNullOrEmpty(_options.HubUrl))
+        {
+            throw new InvalidOperationException(
+                "HubUrl is not configured. Either configure it in AddSignalRUserManagementClient options " +
+                "or use the StartAsync overload that accepts a hubUrl parameter.");
+        }
+
+        return StartAsync(_options.HubUrl, accessTokenProvider, configureOptions);
     }
 
     /// <summary>
@@ -189,6 +243,36 @@ public class UserConnectionClient : IAsyncDisposable
         };
 
         await ConnectWithRetryAsync();
+    }
+
+    /// <summary>
+    /// Starts the connection to the hub with cookie authentication support using the pre-configured HubUrl.
+    /// Use this overload for Blazor WebAssembly apps with cookie-based authentication.
+    /// </summary>
+    /// <param name="configureOptions">Optional: configure additional HTTP connection options</param>
+    /// <exception cref="InvalidOperationException">Thrown when HubUrl is not configured in options</exception>
+    /// <example>
+    /// <code>
+    /// // Configure in Program.cs
+    /// builder.Services.AddSignalRUserManagementClientWithHandlers(options =>
+    /// {
+    ///     options.HubUrl = "/hubs/usermanagement"; // Relative URL works for same-origin
+    /// });
+    ///
+    /// // Then in component, no URL needed
+    /// await ConnectionClient.StartWithCookiesAsync();
+    /// </code>
+    /// </example>
+    public Task StartWithCookiesAsync(Action<HttpConnectionOptions>? configureOptions = null)
+    {
+        if (string.IsNullOrEmpty(_options.HubUrl))
+        {
+            throw new InvalidOperationException(
+                "HubUrl is not configured. Either configure it in AddSignalRUserManagementClient options " +
+                "or use the StartWithCookiesAsync overload that accepts a hubUrl parameter.");
+        }
+
+        return StartWithCookiesAsync(_options.HubUrl, configureOptions);
     }
 
     /// <summary>

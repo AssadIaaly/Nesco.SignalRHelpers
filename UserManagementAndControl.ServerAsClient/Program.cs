@@ -14,8 +14,9 @@ var builder = WebApplication.CreateBuilder(args);
 // It connects to the server's SignalR hub and can receive method invocations.
 // =============================================================================
 
-// Server API base URL
+// Server API base URL and SignalR hub URL
 const string serverUrl = "http://localhost:5000";
+const string hubUrl = $"{serverUrl}/hubs/usermanagement";
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -50,6 +51,8 @@ builder.Services.AddSingleton<MethodInvocationLogger>();
 // ============================================================================
 builder.Services.AddSignalRUserManagementClient<ClientMethodExecutor>(options =>
 {
+    // Configure HubUrl so components don't need to specify it
+    options.HubUrl = hubUrl;
     options.MaxDirectDataSizeBytes = 64 * 1024; // 64KB
     options.EnableFileUpload = true; // Enable file upload for large responses (like GetLargeData)
 });

@@ -32,8 +32,8 @@ public class SignalRUserManagementClientOptions
     public string FileUploadRoute { get; set; } = "api/FileUpload";
 
     /// <summary>
-    /// Enable automatic file upload for large responses. Default: true
-    /// When enabled and IFileUploadService is registered, large responses will be uploaded as files.
+    /// Enable automatic file upload for large responses. Default: false
+    /// When enabled, requires HttpClient to be registered. Large responses will be uploaded as files.
     /// </summary>
-    public bool EnableFileUpload { get; set; } = true;
+    public bool EnableFileUpload { get; set; } = false;
 }

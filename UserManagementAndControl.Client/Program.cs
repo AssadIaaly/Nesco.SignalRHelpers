@@ -25,8 +25,9 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Server API base URL
+// Server API base URL and SignalR hub URL
 const string serverUrl = "http://localhost:5000";
+const string hubUrl = $"{serverUrl}/hubs/usermanagement";
 
 // Configure HttpClient to call the server API
 builder.Services.AddScoped(sp => new HttpClient
@@ -58,7 +59,10 @@ builder.Services.AddSignalRUserManagementClientWithHandlers(
     },
     client =>
     {
+        // Configure HubUrl so components don't need to specify it
+        client.HubUrl = hubUrl;
         client.MaxDirectDataSizeBytes = 10 * 1024; // 10KB
+        client.EnableFileUpload = true; // Enable file upload for large responses (like GetLargeData)
     });
 
 // ============================================================================

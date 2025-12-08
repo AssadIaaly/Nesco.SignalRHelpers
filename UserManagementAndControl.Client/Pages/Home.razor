@@ -83,7 +83,7 @@ else
                         }
                         <tr>
                             <td><strong>Hub URL:</strong></td>
-                            <td><small>@_hubUrl</small></td>
+                            <td><small>@(ConnectionClient.ConfiguredHubUrl ?? "Not configured")</small></td>
                         </tr>
                         <tr>
                             <td><strong>Auto-Reconnect:</strong></td>
@@ -634,7 +634,6 @@ else
     private bool _isConnecting;
     private bool _isReconnecting;
     private string _connectionId = string.Empty;
-    private string _hubUrl = "http://localhost:5000/hubs/usermanagement";
     private System.Threading.Timer? _statusTimer;
     private System.Threading.Timer? _reconnectTimer;
     private IEnumerable<MethodInvocationLog> _methodLogs = Enumerable.Empty<MethodInvocationLog>();
@@ -661,6 +660,9 @@ else
     {
         // Subscribe to method completion event for handling server-initiated logout
         ConnectionClient.MethodCompleted += OnMethodCompleted;
+
+        // Subscribe to method execution completed event for logging invocations
+        ConnectionClient.MethodExecutionCompleted += OnMethodExecutionCompleted;
 
         // Check authentication
         _isAuthenticated = AuthService.IsAuthenticated;
@@ -711,6 +713,12 @@ else
         }
     }
 
+    private void OnMethodExecutionCompleted(string methodName, object? parameter, object? result, TimeSpan duration, Exception? error)
+    {
+        // Log the method invocation to the MethodInvocationLogger
+        InvocationLogger.LogInvocation(methodName, parameter, result, duration, error);
+    }
+
     private async Task StartConnection()
     {
         _isConnecting = true;
@@ -718,9 +726,9 @@ else
 
         try
         {
+            // HubUrl is pre-configured in Program.cs
             await ConnectionClient.StartAsync(
-                _hubUrl,
-                () => Task.FromResult(AuthService.AccessToken!));
+                accessTokenProvider: () => Task.FromResult(AuthService.AccessToken!));
 
             // Register handlers for receiving broadcasts and notifications from AppHub
             RegisterCustomHubHandlers();
@@ -773,9 +781,9 @@ else
                 Console.WriteLine(">>> [Home] Continuous retry attempt...");
                 try
                 {
+                    // HubUrl is pre-configured in Program.cs
                     await ConnectionClient.StartAsync(
-                        _hubUrl,
-                        () => Task.FromResult(AuthService.AccessToken!));
+                        accessTokenProvider: () => Task.FromResult(AuthService.AccessToken!));
                 }
                 catch (Exception retryEx)
                 {
@@ -944,6 +952,7 @@ else
         ConnectionClient.Reconnecting -= OnReconnecting;
         ConnectionClient.Reconnected -= OnReconnected;
         ConnectionClient.MethodCompleted -= OnMethodCompleted;
+        ConnectionClient.MethodExecutionCompleted -= OnMethodExecutionCompleted;
         InvocationLogger.OnLogAdded -= OnLogAdded;
     }
 }

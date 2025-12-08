@@ -12,26 +12,18 @@ namespace UserManagementAndControl.Client.Reflection.SignalRHandlers;
 /// Methods can be parameterless or have a single parameter (auto-deserialized).
 /// Dependencies are injected via constructor (standard DI).
 /// </summary>
-public class AppSignalRHandlers : ISignalRHandler
+public class AppSignalRHandlers(
+    ILogger<AppSignalRHandlers> logger,
+    IServiceProvider serviceProvider)
+    : ISignalRHandler
 {
-    private readonly ILogger<AppSignalRHandlers> _logger;
-    private readonly IServiceProvider _serviceProvider;
-
-    public AppSignalRHandlers(
-        ILogger<AppSignalRHandlers> logger,
-        IServiceProvider serviceProvider)
-    {
-        _logger = logger;
-        _serviceProvider = serviceProvider;
-    }
-
     /// <summary>
     /// Handles "Ping" from the server - simple connectivity check.
     /// No parameters required!
     /// </summary>
     public Task<object?> Ping()
     {
-        _logger.LogInformation("Ping received");
+        logger.LogInformation("Ping received");
         return Task.FromResult<object?>(new
         {
             message = "Pong",
@@ -44,7 +36,7 @@ public class AppSignalRHandlers : ISignalRHandler
     /// </summary>
     public Task<object?> Echo(EchoRequest request)
     {
-        _logger.LogInformation("Echo received: {Message}", request.Message);
+        logger.LogInformation("Echo received: {Message}", request.Message);
         return Task.FromResult<object?>(new
         {
             echo = request.Message,
@@ -57,7 +49,7 @@ public class AppSignalRHandlers : ISignalRHandler
     /// </summary>
     public Task<object?> Alert(AlertRequest request)
     {
-        _logger.LogInformation("Alert received: {Title} - {Message}", request.Title, request.Message);
+        logger.LogInformation("Alert received: {Title} - {Message}", request.Title, request.Message);
         return Task.FromResult<object?>(new
         {
             acknowledged = true,
@@ -70,7 +62,7 @@ public class AppSignalRHandlers : ISignalRHandler
     /// </summary>
     public Task<object?> Navigate(NavigateRequest request)
     {
-        _logger.LogInformation("Navigate request: {Url}", request.Url);
+        logger.LogInformation("Navigate request: {Url}", request.Url);
         return Task.FromResult<object?>(new
         {
             willNavigate = true,
@@ -84,7 +76,7 @@ public class AppSignalRHandlers : ISignalRHandler
     /// </summary>
     public Task<object?> GetClientInfo()
     {
-        _logger.LogInformation("GetClientInfo request received");
+        logger.LogInformation("GetClientInfo request received");
         return Task.FromResult<object?>(new
         {
             platform = "Blazor WebAssembly",
@@ -99,7 +91,7 @@ public class AppSignalRHandlers : ISignalRHandler
     /// </summary>
     public Task<object?> Calculate(CalculateRequest request)
     {
-        _logger.LogInformation("Calculate: {A} {Op} {B}", request.A, request.Operation, request.B);
+        logger.LogInformation("Calculate: {A} {Op} {B}", request.A, request.Operation, request.B);
 
         double result = request.Operation switch
         {
@@ -126,7 +118,7 @@ public class AppSignalRHandlers : ISignalRHandler
     public Task<object?> GetLargeData(LargeDataRequest request)
     {
         var itemCount = request.ItemCount > 0 ? request.ItemCount : 1000;
-        _logger.LogInformation("GetLargeData: generating {Count} items", itemCount);
+        logger.LogInformation("GetLargeData: generating {Count} items", itemCount);
 
         var items = new List<LargeDataItem>();
         for (var i = 0; i < itemCount; i++)
@@ -143,7 +135,7 @@ public class AppSignalRHandlers : ISignalRHandler
         }
 
         var totalSize = System.Text.Json.JsonSerializer.Serialize(items).Length;
-        _logger.LogInformation("GetLargeData response: {Size} bytes", totalSize);
+        logger.LogInformation("GetLargeData response: {Size} bytes", totalSize);
 
         return Task.FromResult<object?>(new
         {
@@ -160,13 +152,19 @@ public class AppSignalRHandlers : ISignalRHandler
     /// </summary>
     public async Task<object?> Logout()
     {
-        _logger.LogInformation("Logout request from server");
-        using var scope = _serviceProvider.CreateScope();
+        logger.LogInformation("Logout request from server");
+        using var scope = serviceProvider.CreateScope();
         var authService = scope.ServiceProvider.GetRequiredService<AuthService>();
         await authService.LogoutAsync();
 
         return new { loggedOut = true, timestamp = DateTime.UtcNow };
     }
+
+    public async Task<object?> GetMoreData()
+    {
+        return new { Message = "No More Data" };
+    }
+
 }
 
 #region Request DTOs

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using Microsoft.Extensions.Logging;
 using Nesco.SignalRUserManagement.Client.Handlers;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -22,7 +21,8 @@ builder.Services.AddAuthenticationStateDeserialization();
 // ============================================================================
 builder.Services.AddSignalRUserManagementClientWithHandlers(options =>
 {
-    options.EnableFileUpload = false; // Disable file upload for simplicity
+    // Configure HubUrl so components don't need to specify it
+    options.HubUrl = builder.HostEnvironment.BaseAddress.TrimEnd('/') + "/hubs/usermanagement";
 });
 
 await builder.Build().RunAsync();
