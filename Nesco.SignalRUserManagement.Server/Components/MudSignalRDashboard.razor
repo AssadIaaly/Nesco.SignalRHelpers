@@ -1,0 +1,666 @@
+@using Nesco.SignalRUserManagement.Server.Services
+@using Nesco.SignalRUserManagement.Core.Models
+@using System.Text.Json
+@using MudBlazor
+@inject ISignalRUserManagementService ManagementService
+@inject InMemoryConnectionTracker ConnectionTracker
+@implements IDisposable
+
+<MudGrid>
+    <MudItem xs="12">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Connected Users</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" OnClick="PingAllUsers" Class="mr-2">
+                        Ping All
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="RefreshConnections" Disabled="_isRefreshing">
+                        @if (_isRefreshing)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Refreshing...</span>
+                        }
+                        else
+                        {
+                            <span>Refresh</span>
+                        }
+                    </MudButton>
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                @if (_connectedUsers == null)
+                {
+                    <MudProgressLinear Indeterminate="true" />
+                    <MudText Class="mt-2"><em>Loading...</em></MudText>
+                }
+                else if (!_connectedUsers.Any())
+                {
+                    <MudAlert Severity="Severity.Warning">
+                        No users currently connected.
+                        <br /><MudText Typo="Typo.caption">Start a client, login, and connect to SignalR to see users here.</MudText>
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudSimpleTable Hover="true" Dense="true" Striped="true" Style="overflow-x: auto;">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Connections</th>
+                                <th>Last Connected</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var user in _connectedUsers)
+                            {
+                                <tr>
+                                    <td>
+                                        <MudText Typo="Typo.body2"><strong>@(user.Username ?? user.UserId)</strong></MudText>
+                                        @if (!string.IsNullOrEmpty(user.Email))
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">@user.Email</MudText>
+                                        }
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family: monospace;">@user.UserId</MudText>
+                                    </td>
+                                    <td>
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small">@user.Connections.Count</MudChip>
+                                    </td>
+                                    <td>@user.LastConnect?.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                    <td>
+                                        <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                            <MudButton Color="Color.Primary" OnClick="() => PingUser(user.UserId)" Title="Ping this user">
+                                                Ping
+                                            </MudButton>
+                                            <MudButton Color="Color.Error" OnClick="() => LogoutUser(user.UserId)" Disabled="_loggingOutUsers.Contains(user.UserId)" Title="Logout this user (all connections)">
+                                                @if (_loggingOutUsers.Contains(user.UserId))
+                                                {
+                                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                                                    <span>...</span>
+                                                }
+                                                else
+                                                {
+                                                    <span>Logout</span>
+                                                }
+                                            </MudButton>
+                                            <MudButton Color="Color.Default" OnClick="() => ToggleConnectionDetails(user.UserId)">
+                                                <MudIcon Icon="@(_expandedUsers.Contains(user.UserId) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" />
+                                                @(_expandedUsers.Contains(user.UserId) ? "Hide" : "Show")
+                                            </MudButton>
+                                        </MudButtonGroup>
+                                    </td>
+                                </tr>
+                                @if (_expandedUsers.Contains(user.UserId))
+                                {
+                                    <tr>
+                                        <td colspan="4" style="background-color: var(--mud-palette-background-gray); padding: 0;">
+                                            <MudCard Elevation="0" Class="ma-2">
+                                                <MudCardContent>
+                                                    <MudText Typo="Typo.subtitle2" Class="mb-2"><strong>Connections:</strong></MudText>
+                                                    <MudSimpleTable Dense="true" Hover="true">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Connection ID</th>
+                                                                <th>User Agent</th>
+                                                                <th>Connected At</th>
+                                                                <th>Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var conn in user.Connections)
+                                                            {
+                                                                <tr>
+                                                                    <td><MudText Typo="Typo.body2" Color="Color.Primary" Style="font-family: monospace;">@conn.ConnectionId</MudText></td>
+                                                                    <td><MudText Typo="Typo.caption">@conn.UserAgent</MudText></td>
+                                                                    <td>@conn.ConnectedAt.ToString("HH:mm:ss")</td>
+                                                                    <td>
+                                                                        <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                                                            <MudButton Color="Color.Primary" OnClick="() => PingConnection(conn.ConnectionId)" Title="Ping this specific connection">
+                                                                                Ping
+                                                                            </MudButton>
+                                                                            <MudButton Color="Color.Error" OnClick="() => LogoutConnection(conn.ConnectionId)" Disabled="_loggingOutConnections.Contains(conn.ConnectionId)" Title="Logout this specific connection">
+                                                                                @if (_loggingOutConnections.Contains(conn.ConnectionId))
+                                                                                {
+                                                                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                                                                }
+                                                                                else
+                                                                                {
+                                                                                    <span>Logout</span>
+                                                                                }
+                                                                            </MudButton>
+                                                                        </MudButtonGroup>
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </MudSimpleTable>
+                                                </MudCardContent>
+                                            </MudCard>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                    <MudAlert Severity="Severity.Info" Class="mt-3">
+                        <strong>Summary:</strong> @_connectedUsers.Count users, @_connectedUsers.Sum(u => u.Connections.Count) total connections
+                    </MudAlert>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Invoke Method</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_methodName" Label="Method Name" Placeholder="Enter method name (e.g., Ping, Echo, GetClientInfo)" Variant="Variant.Outlined" HelperText="Enter any method name registered on the client" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudSelect @bind-Value="_targetType" Label="Target Type" Variant="Variant.Outlined">
+                            <MudSelectItem Value="@("All")">All Connected Users</MudSelectItem>
+                            <MudSelectItem Value="@("User")">Single User</MudSelectItem>
+                            <MudSelectItem Value="@("Users")">Multiple Users</MudSelectItem>
+                            <MudSelectItem Value="@("Connection")">Single Connection</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+
+                    @if (_targetType != "All")
+                    {
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_target" Label="@GetTargetLabel()" Placeholder="@GetTargetPlaceholder()" Variant="Variant.Outlined" HelperText="@GetTargetHelperText()" />
+                        </MudItem>
+                    }
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_parameters" Label="Parameters (JSON)" Placeholder="JSON parameter" Variant="Variant.Outlined" Lines="4" HelperText="Enter parameters as JSON object, or leave empty for no parameters" Style="font-family: monospace;" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="InvokeMethod" Disabled="_isInvoking">
+                            @if (_isInvoking)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Invoking...</span>
+                            }
+                            else
+                            {
+                                <span>Invoke Method</span>
+                            }
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Invocation Results</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="ClearResults">Clear</MudButton>
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                @if (!_results.Any())
+                {
+                    <MudText Color="Color.Secondary">No invocations yet. Use the form above to test method invocation.</MudText>
+                }
+                else
+                {
+                    <MudStack Spacing="2">
+                        @foreach (var result in _results.OrderByDescending(r => r.Timestamp))
+                        {
+                            <MudPaper Class="pa-3" Elevation="1" Style="@($"border-left: 4px solid {(result.Success ? "var(--mud-palette-success)" : "var(--mud-palette-error)")}")">
+                                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                    <MudText Typo="Typo.subtitle2">
+                                        <MudIcon Icon="@(result.Success ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Error)" Color="@(result.Success ? Color.Success : Color.Error)" Size="Size.Small" Class="mr-1" />
+                                        @(result.Success ? "Success" : "Error") - @result.MethodName -> @result.Target
+                                    </MudText>
+                                    <MudText Typo="Typo.caption">@result.Timestamp.ToString("HH:mm:ss")</MudText>
+                                </MudStack>
+
+                                @if (result.IsMultiResponse && result.ClientResponses.Any())
+                                {
+                                    <div class="mt-2">
+                                        <MudText Typo="Typo.body2"><strong>Responses (@result.ClientResponses.Count):</strong></MudText>
+                                        <MudStack Row="true" Spacing="1" Class="my-1">
+                                            <MudChip T="string" Color="Color.Success" Size="Size.Small">@result.ClientResponses.Count(r => r.Success) succeeded</MudChip>
+                                            @if (result.ClientResponses.Any(r => !r.Success))
+                                            {
+                                                <MudChip T="string" Color="Color.Error" Size="Size.Small">@result.ClientResponses.Count(r => !r.Success) failed</MudChip>
+                                            }
+                                        </MudStack>
+                                        <MudPaper Outlined="true" Class="mt-2">
+                                            @foreach (var clientResp in result.ClientResponses)
+                                            {
+                                                var responseKey = $"{result.Timestamp.Ticks}-{clientResp.ConnectionId}";
+                                                <div style="border-bottom: 1px solid var(--mud-palette-lines-default);">
+                                                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="pa-2 cursor-pointer" @onclick="() => ToggleClientResponse(responseKey)" Style="cursor: pointer;">
+                                                        <MudIcon Icon="@(_expandedResponses.Contains(responseKey) ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)" Size="Size.Small" />
+                                                        <MudChip T="string" Color="@(clientResp.Success ? Color.Success : Color.Error)" Size="Size.Small">
+                                                            @(clientResp.Success ? "OK" : "ERR")
+                                                        </MudChip>
+                                                        <MudText Typo="Typo.caption" Style="font-family: monospace;">@clientResp.ConnectionId</MudText>
+                                                    </MudStack>
+                                                    @if (_expandedResponses.Contains(responseKey))
+                                                    {
+                                                        <MudPaper Class="pa-2 mx-2 mb-2" Style="background-color: var(--mud-palette-background-gray);">
+                                                            @if (clientResp.Success)
+                                                            {
+                                                                <pre style="margin: 0; white-space: pre-wrap; font-size: 0.85em; font-family: monospace;">@clientResp.Result</pre>
+                                                            }
+                                                            else
+                                                            {
+                                                                <MudText Typo="Typo.body2" Color="Color.Error"><strong>Error:</strong> @clientResp.Error</MudText>
+                                                            }
+                                                        </MudPaper>
+                                                    }
+                                                </div>
+                                            }
+                                        </MudPaper>
+                                    </div>
+                                }
+                                else if (result.Success)
+                                {
+                                    <MudText Typo="Typo.body2" Class="mt-2"><strong>Result:</strong></MudText>
+                                    <MudPaper Class="pa-2 mt-1" Style="background-color: var(--mud-palette-background-gray);">
+                                        <pre style="margin: 0; white-space: pre-wrap; font-size: 0.85em; font-family: monospace;">@result.Result</pre>
+                                    </MudPaper>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.body2" Color="Color.Error" Class="mt-2"><strong>Error:</strong> @result.Error</MudText>
+                                }
+                            </MudPaper>
+                        }
+                    </MudStack>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private List<ConnectedUserInfo>? _connectedUsers;
+    private HashSet<string> _expandedUsers = new();
+    private HashSet<string> _expandedResponses = new();
+    private HashSet<string> _loggingOutUsers = new();
+    private HashSet<string> _loggingOutConnections = new();
+
+    private string _methodName = "Ping";
+    private string _targetType = "All";
+    private string _target = "";
+    private string _parameters = "";
+    private bool _isInvoking = false;
+    private bool _isRefreshing = false;
+
+    private List<InvocationResult> _results = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConnectionTracker.ConnectionsChanged += OnConnectionsChanged;
+        await RefreshConnections();
+    }
+
+    private void OnConnectionsChanged(ConnectionChangeEventArgs args)
+    {
+        InvokeAsync(async () =>
+        {
+            _connectedUsers = await ManagementService.GetConnectedUsersAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        ConnectionTracker.ConnectionsChanged -= OnConnectionsChanged;
+    }
+
+    private async Task RefreshConnections()
+    {
+        _isRefreshing = true;
+        StateHasChanged();
+
+        try
+        {
+            _connectedUsers = await ManagementService.GetConnectedUsersAsync();
+        }
+        finally
+        {
+            _isRefreshing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleConnectionDetails(string userId)
+    {
+        if (_expandedUsers.Contains(userId))
+            _expandedUsers.Remove(userId);
+        else
+            _expandedUsers.Add(userId);
+    }
+
+    private void ToggleClientResponse(string responseKey)
+    {
+        if (_expandedResponses.Contains(responseKey))
+            _expandedResponses.Remove(responseKey);
+        else
+            _expandedResponses.Add(responseKey);
+    }
+
+    private async Task PingUser(string userId)
+    {
+        _methodName = "Ping";
+        _targetType = "User";
+        _target = userId;
+        _parameters = "";
+        await InvokeMethod();
+    }
+
+    private async Task PingAllUsers()
+    {
+        _methodName = "Ping";
+        _targetType = "All";
+        _target = "";
+        _parameters = "";
+        await InvokeMethod();
+    }
+
+    private async Task PingConnection(string connectionId)
+    {
+        _methodName = "Ping";
+        _targetType = "Connection";
+        _target = connectionId;
+        _parameters = "";
+        await InvokeMethod();
+    }
+
+    private async Task LogoutUser(string userId)
+    {
+        _loggingOutUsers.Add(userId);
+        StateHasChanged();
+
+        try
+        {
+            _methodName = "Logout";
+            _targetType = "User";
+            _target = userId;
+            _parameters = "";
+            await InvokeMethod();
+        }
+        finally
+        {
+            _loggingOutUsers.Remove(userId);
+            StateHasChanged();
+        }
+    }
+
+    private async Task LogoutConnection(string connectionId)
+    {
+        _loggingOutConnections.Add(connectionId);
+        StateHasChanged();
+
+        try
+        {
+            _methodName = "Logout";
+            _targetType = "Connection";
+            _target = connectionId;
+            _parameters = "";
+            await InvokeMethod();
+        }
+        finally
+        {
+            _loggingOutConnections.Remove(connectionId);
+            StateHasChanged();
+        }
+    }
+
+    private string GetTargetLabel()
+    {
+        return _targetType switch
+        {
+            "User" => "User ID",
+            "Users" => "User IDs (comma-separated)",
+            "Connection" => "Connection ID",
+            _ => "Target"
+        };
+    }
+
+    private string GetTargetPlaceholder()
+    {
+        return _targetType switch
+        {
+            "User" => "Enter User ID",
+            "Users" => "user1,user2,user3",
+            "Connection" => "Enter Connection ID",
+            _ => ""
+        };
+    }
+
+    private string GetTargetHelperText()
+    {
+        return _targetType switch
+        {
+            "User" => "Enter the User ID from the table above",
+            "Users" => "Enter multiple User IDs separated by commas",
+            "Connection" => "Expand a user's connections above and copy a Connection ID",
+            _ => ""
+        };
+    }
+
+    private async Task InvokeMethod()
+    {
+        if (string.IsNullOrWhiteSpace(_methodName))
+        {
+            AddResult(false, _methodName, _targetType, null, "Method name is required");
+            return;
+        }
+
+        if (_targetType != "All" && string.IsNullOrWhiteSpace(_target))
+        {
+            AddResult(false, _methodName, _targetType, null, "Target is required for the selected target type");
+            return;
+        }
+
+        _isInvoking = true;
+        StateHasChanged();
+
+        try
+        {
+            object? paramObj = null;
+            if (!string.IsNullOrWhiteSpace(_parameters))
+            {
+                try
+                {
+                    paramObj = JsonSerializer.Deserialize<JsonElement>(_parameters);
+                }
+                catch (Exception ex)
+                {
+                    AddResult(false, _methodName, _targetType, null, $"Invalid JSON parameters: {ex.Message}");
+                    return;
+                }
+            }
+
+            string targetDisplay;
+
+            switch (_targetType)
+            {
+                case "All":
+                {
+                    targetDisplay = "All Users";
+                    await InvokeStreamingAsync(
+                        ManagementService.InvokeOnAllConnectedStreamingAsync(_methodName, paramObj),
+                        _methodName,
+                        targetDisplay);
+                    break;
+                }
+
+                case "User":
+                {
+                    targetDisplay = $"User {_target}";
+                    await InvokeStreamingAsync(
+                        ManagementService.InvokeOnUserStreamingAsync(_target, _methodName, paramObj),
+                        _methodName,
+                        targetDisplay);
+                    break;
+                }
+
+                case "Users":
+                {
+                    var userIds = _target.Split(',').Select(id => id.Trim()).Where(id => !string.IsNullOrWhiteSpace(id));
+                    targetDisplay = $"Users ({_target})";
+                    await InvokeStreamingAsync(
+                        ManagementService.InvokeOnUsersStreamingAsync(userIds, _methodName, paramObj),
+                        _methodName,
+                        targetDisplay);
+                    break;
+                }
+
+                case "Connection":
+                {
+                    targetDisplay = $"Connection {_target}";
+                    var response = await ManagementService.InvokeOnConnectionAsync(_target, _methodName, paramObj);
+                    if (response != null)
+                    {
+                        if (!string.IsNullOrEmpty(response.ErrorMessage))
+                        {
+                            AddResult(false, _methodName, targetDisplay, null, response.ErrorMessage);
+                        }
+                        else
+                        {
+                            var resultJson = response.JsonData != null
+                                ? JsonSerializer.Serialize(response.JsonData, new JsonSerializerOptions { WriteIndented = true })
+                                : response.FilePath ?? "(null)";
+                            AddResult(true, _methodName, targetDisplay, resultJson, null);
+                        }
+                    }
+                    else
+                    {
+                        AddResult(false, _methodName, targetDisplay, null, "No response received");
+                    }
+                    break;
+                }
+
+                default:
+                    AddResult(false, _methodName, _targetType, null, "Invalid target type");
+                    return;
+            }
+
+            await RefreshConnections();
+        }
+        catch (TimeoutException ex)
+        {
+            AddResult(false, _methodName, _targetType, null, $"Timeout: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            AddResult(false, _methodName, _targetType, null, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            AddResult(false, _methodName, _targetType, null, $"Error: {ex.Message}");
+        }
+        finally
+        {
+            _isInvoking = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task InvokeStreamingAsync(IAsyncEnumerable<ClientResponse> responses, string methodName, string targetDisplay)
+    {
+        var invocationResult = new InvocationResult
+        {
+            Timestamp = DateTime.Now,
+            Success = true,
+            MethodName = methodName,
+            Target = targetDisplay,
+            IsMultiResponse = true,
+            ClientResponses = new List<ClientResponseResult>()
+        };
+        _results.Add(invocationResult);
+        StateHasChanged();
+
+        await foreach (var response in responses)
+        {
+            string? resultJson = null;
+            if (response.Response?.JsonData != null)
+            {
+                resultJson = JsonSerializer.Serialize(response.Response.JsonData, new JsonSerializerOptions { WriteIndented = true });
+            }
+            else if (!string.IsNullOrEmpty(response.Response?.FilePath))
+            {
+                resultJson = response.Response.FilePath;
+            }
+
+            var clientResult = new ClientResponseResult
+            {
+                ConnectionId = response.ConnectionId,
+                Success = response.Success,
+                Result = resultJson,
+                Error = response.ErrorMessage ?? response.Response?.ErrorMessage
+            };
+
+            invocationResult.ClientResponses.Add(clientResult);
+
+            if (!response.Success)
+            {
+                invocationResult.Success = invocationResult.ClientResponses.Any(r => r.Success);
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void AddResult(bool success, string methodName, string target, string? result, string? error)
+    {
+        _results.Add(new InvocationResult
+        {
+            Timestamp = DateTime.Now,
+            Success = success,
+            MethodName = methodName,
+            Target = target,
+            Result = result,
+            Error = error,
+            IsMultiResponse = false
+        });
+    }
+
+    private void ClearResults()
+    {
+        _results.Clear();
+    }
+
+    private class InvocationResult
+    {
+        public DateTime Timestamp { get; set; }
+        public bool Success { get; set; }
+        public string MethodName { get; set; } = "";
+        public string Target { get; set; } = "";
+        public string? Result { get; set; }
+        public string? Error { get; set; }
+        public bool IsMultiResponse { get; set; }
+        public List<ClientResponseResult> ClientResponses { get; set; } = new();
+    }
+
+    private class ClientResponseResult
+    {
+        public string ConnectionId { get; set; } = "";
+        public bool Success { get; set; }
+        public string? Result { get; set; }
+        public string? Error { get; set; }
+    }
+}

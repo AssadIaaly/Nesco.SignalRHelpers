@@ -1,0 +1,144 @@
+@* =============================================================================
+   RenderMode: InteractiveWebAssembly
+   This page runs entirely in the browser via WebAssembly.
+   It connects to SignalR using cookie authentication and demonstrates
+   client-side SignalR functionality including method invocation from server.
+============================================================================= *@
+@page "/signalr-demo"
+@rendermode InteractiveWebAssembly
+@using Microsoft.AspNetCore.Authorization
+@using Nesco.SignalRUserManagement.Client.Services
+@inject UserConnectionClient ConnectionClient
+@attribute [Authorize]
+
+<PageTitle>SignalR Demo</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">SignalR Connection Demo</MudText>
+
+<MudCard Class="mb-4">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">Connection Status</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudText><strong>Status:</strong></MudText>
+            <MudChip T="string" Color="@(ConnectionClient.IsConnected ? Color.Success : Color.Error)" Size="Size.Small">
+                @(ConnectionClient.IsConnected ? "Connected" : "Disconnected")
+            </MudChip>
+        </MudStack>
+        @if (ConnectionClient.IsConnected)
+        {
+            <MudText Class="mt-2"><strong>Connection ID:</strong> <code>@ConnectionClient.ConnectionId</code></MudText>
+        }
+    </MudCardContent>
+</MudCard>
+
+<MudStack Row="true" Spacing="2" Class="mb-4">
+    @if (!ConnectionClient.IsConnected)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConnectAsync" Disabled="_isConnecting">
+            @if (_isConnecting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Connecting...</span>
+            }
+            else
+            {
+                <span>Connect to SignalR Hub</span>
+            }
+        </MudButton>
+    }
+    else
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="DisconnectAsync">
+            Disconnect
+        </MudButton>
+    }
+</MudStack>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+}
+
+@if (!string.IsNullOrEmpty(_statusMessage))
+{
+    <MudAlert Severity="Severity.Info" Class="mb-4">@_statusMessage</MudAlert>
+}
+
+@code {
+    private bool _isConnecting;
+    private string? _errorMessage;
+    private string? _statusMessage;
+
+    protected override void OnInitialized()
+    {
+        ConnectionClient.ConnectionChanged += OnConnectionChanged;
+        ConnectionClient.Reconnecting += OnReconnecting;
+        ConnectionClient.Reconnected += OnReconnected;
+    }
+
+    private async Task ConnectAsync()
+    {
+        _isConnecting = true;
+        _errorMessage = null;
+        _statusMessage = "Connecting...";
+        StateHasChanged();
+
+        try
+        {
+            // Connect using cookies - HubUrl is pre-configured in Program.cs
+            await ConnectionClient.StartWithCookiesAsync();
+            _statusMessage = "Connected successfully!";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to connect: {ex.Message}";
+            _statusMessage = null;
+        }
+        finally
+        {
+            _isConnecting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DisconnectAsync()
+    {
+        try
+        {
+            await ConnectionClient.StopAsync();
+            _statusMessage = "Disconnected.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error disconnecting: {ex.Message}";
+        }
+    }
+
+    private void OnConnectionChanged(bool isConnected)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnReconnecting()
+    {
+        _statusMessage = "Reconnecting...";
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnReconnected(string? connectionId)
+    {
+        _statusMessage = $"Reconnected with ID: {connectionId}";
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ConnectionClient.ConnectionChanged -= OnConnectionChanged;
+        ConnectionClient.Reconnecting -= OnReconnecting;
+        ConnectionClient.Reconnected -= OnReconnected;
+    }
+}

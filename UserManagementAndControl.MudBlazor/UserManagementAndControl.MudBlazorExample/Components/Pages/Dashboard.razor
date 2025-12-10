@@ -1,0 +1,18 @@
+@* =============================================================================
+   RenderMode: InteractiveServer
+   This page uses server-side rendering for the SignalR dashboard.
+   The dashboard manages connected SignalR users and allows invoking methods.
+============================================================================= *@
+@page "/dashboard"
+@rendermode InteractiveServer
+@layout Layout.EmptyLayout
+@using Microsoft.AspNetCore.Authorization
+@using Nesco.SignalRUserManagement.Server.Components
+@attribute [Authorize]
+
+<PageTitle>SignalR Dashboard</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">SignalR Dashboard</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Manage connected users and invoke methods on clients</MudText>
+
+<MudSignalRDashboard />

@@ -38,6 +38,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserManagementAndControl.Bl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserManagementAndControl.BlazorApp.Client", "UserManagementAndControl.BlazorApp\UserManagementAndControl.BlazorApp.Client\UserManagementAndControl.BlazorApp.Client.csproj", "{CE22BAF1-6C27-405A-A3B4-996B1F00DB87}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserManagementAndControl.MudBlazorExample", "UserManagementAndControl.MudBlazor\UserManagementAndControl.MudBlazorExample\UserManagementAndControl.MudBlazorExample.csproj", "{382EAB30-9DF9-4932-92ED-EECBB77FAE3B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserManagementAndControl.MudBlazorExample.Client", "UserManagementAndControl.MudBlazor\UserManagementAndControl.MudBlazorExample.Client\UserManagementAndControl.MudBlazorExample.Client.csproj", "{3C4718C5-CDAA-4F6F-9820-584E6026F9EB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -120,5 +124,13 @@ Global
 		{CE22BAF1-6C27-405A-A3B4-996B1F00DB87}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CE22BAF1-6C27-405A-A3B4-996B1F00DB87}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CE22BAF1-6C27-405A-A3B4-996B1F00DB87}.Release|Any CPU.Build.0 = Release|Any CPU
+		{382EAB30-9DF9-4932-92ED-EECBB77FAE3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{382EAB30-9DF9-4932-92ED-EECBB77FAE3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{382EAB30-9DF9-4932-92ED-EECBB77FAE3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{382EAB30-9DF9-4932-92ED-EECBB77FAE3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C4718C5-CDAA-4F6F-9820-584E6026F9EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C4718C5-CDAA-4F6F-9820-584E6026F9EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C4718C5-CDAA-4F6F-9820-584E6026F9EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C4718C5-CDAA-4F6F-9820-584E6026F9EB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

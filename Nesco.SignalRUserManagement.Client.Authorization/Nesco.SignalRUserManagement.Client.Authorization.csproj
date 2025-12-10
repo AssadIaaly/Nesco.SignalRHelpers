@@ -5,7 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>1.0.9</Version>
+        <Version>1.0.11</Version>
         <Authors>Nesco</Authors>
         <Description>Client-side JWT Authorization for SignalR User Management (Blazor)</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(xargs -I{} sh -c 'echo \"\"\"\"=== {} ===\"\"\"\" && cat \"\"\"\"{}\"\"\"\"')",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
