@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Version>1.0.0</Version>
+        <Authors>Nesco</Authors>
+        <Description>Group management extension for Nesco.SignalRUserManagement.Server - adds join/leave group operations and group tracking</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/AssadIaaly/Nesco.SignalRHelpers</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageTags>signalr;groups;user-management;realtime;websockets;aspnetcore</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+        <None Include="EXAMPLES.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Nesco.SignalRUserManagement.Server\Nesco.SignalRUserManagement.Server.csproj" />
+        <ProjectReference Include="..\Nesco.SignalRUserManagement.Core\Nesco.SignalRUserManagement.Core.csproj" />
+    </ItemGroup>
+
+</Project>

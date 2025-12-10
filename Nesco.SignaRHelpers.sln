@@ -42,6 +42,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserManagementAndControl.Mu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserManagementAndControl.MudBlazorExample.Client", "UserManagementAndControl.MudBlazor\UserManagementAndControl.MudBlazorExample.Client\UserManagementAndControl.MudBlazorExample.Client.csproj", "{3C4718C5-CDAA-4F6F-9820-584E6026F9EB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nesco.SignalRUserManagement.Client.Groups", "Nesco.SignalRUserManagement.Client.Groups\Nesco.SignalRUserManagement.Client.Groups.csproj", "{45F1C1AE-BA2D-40A0-ACB1-B14FFC62653E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nesco.SignalRUserManagement.Server.Groups", "Nesco.SignalRUserManagement.Server.Groups\Nesco.SignalRUserManagement.Server.Groups.csproj", "{31BE2919-992D-4650-9140-FF3A75A5311B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -132,5 +136,13 @@ Global
 		{3C4718C5-CDAA-4F6F-9820-584E6026F9EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3C4718C5-CDAA-4F6F-9820-584E6026F9EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3C4718C5-CDAA-4F6F-9820-584E6026F9EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{45F1C1AE-BA2D-40A0-ACB1-B14FFC62653E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45F1C1AE-BA2D-40A0-ACB1-B14FFC62653E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45F1C1AE-BA2D-40A0-ACB1-B14FFC62653E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45F1C1AE-BA2D-40A0-ACB1-B14FFC62653E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{31BE2919-992D-4650-9140-FF3A75A5311B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{31BE2919-992D-4650-9140-FF3A75A5311B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{31BE2919-992D-4650-9140-FF3A75A5311B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{31BE2919-992D-4650-9140-FF3A75A5311B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
