@@ -5,7 +5,7 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <UserSecretsId>aspnet-UserManagementAndControl.MudBlazor-3028ce3c-90b3-4fd3-bdfb-4f982f1a2aa6</UserSecretsId>
-        <RootNamespace>UserManagementAndControl.MudBlazor</RootNamespace>
+        <RootNamespace>UserManagementAndControl.MudBlazorExample</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

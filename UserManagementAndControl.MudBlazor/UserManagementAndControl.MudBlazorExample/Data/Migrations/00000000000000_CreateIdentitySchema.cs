@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace UserManagementAndControl.MudBlazor.Migrations
+namespace UserManagementAndControl.MudBlazorExample.Migrations
 {
     /// <inheritdoc />
     public partial class CreateIdentitySchema : Migration

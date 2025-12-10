@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Components;
 
-namespace UserManagementAndControl.MudBlazor.Components.Account;
+namespace UserManagementAndControl.MudBlazorExample.Components.Account;
 
 internal sealed class IdentityRedirectManager(NavigationManager navigationManager)
 {

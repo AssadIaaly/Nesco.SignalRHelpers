@@ -5,11 +5,10 @@ using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using Nesco.SignalRUserManagement.Client.Handlers;
 using Nesco.SignalRUserManagement.Server.Extensions;
-using UserManagementAndControl.MudBlazor;
-using UserManagementAndControl.MudBlazor.Client.Pages;
-using UserManagementAndControl.MudBlazor.Components;
-using UserManagementAndControl.MudBlazor.Components.Account;
-using UserManagementAndControl.MudBlazor.Data;
+using UserManagementAndControl.MudBlazorExample;
+using UserManagementAndControl.MudBlazorExample.Components;
+using UserManagementAndControl.MudBlazorExample.Components.Account;
+using UserManagementAndControl.MudBlazorExample.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -61,7 +60,7 @@ builder.Services.AddSignalRUserManagement(options =>
 // This allows WebAssembly components to be prerendered on the server
 // Uses reflection-based handler discovery from the client assembly
 builder.Services.AddSignalRUserManagementClientWithHandlers(
-    typeof(UserManagementAndControl.MudBlazor.Client._Imports).Assembly,
+    typeof(UserManagementAndControl.MudBlazorExample.Client._Imports).Assembly,
     options =>
     {
         // Configure HubUrl for prerendering (will be overridden by client-side config at runtime)
@@ -93,7 +92,7 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddInteractiveWebAssemblyRenderMode()
-    .AddAdditionalAssemblies(typeof(UserManagementAndControl.MudBlazor.Client._Imports).Assembly);
+    .AddAdditionalAssemblies(typeof(UserManagementAndControl.MudBlazorExample.Client._Imports).Assembly);
 
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();

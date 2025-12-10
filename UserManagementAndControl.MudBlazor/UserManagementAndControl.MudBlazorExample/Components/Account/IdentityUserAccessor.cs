@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Identity;
-using UserManagementAndControl.MudBlazor.Data;
+using UserManagementAndControl.MudBlazorExample.Data;
 
-namespace UserManagementAndControl.MudBlazor.Components.Account;
+namespace UserManagementAndControl.MudBlazorExample.Components.Account;
 
 internal sealed class IdentityUserAccessor(
     UserManager<ApplicationUser> userManager,

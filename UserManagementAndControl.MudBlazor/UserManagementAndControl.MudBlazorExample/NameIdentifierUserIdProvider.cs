@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 
-namespace UserManagementAndControl.MudBlazor;
+namespace UserManagementAndControl.MudBlazorExample;
 
 /// <summary>
 /// Custom UserIdProvider that extracts the user ID from the NameIdentifier claim.

@@ -1,6 +1,6 @@
 using Nesco.SignalRUserManagement.Client.Handlers;
 
-namespace UserManagementAndControl.MudBlazor.Client.Services;
+namespace UserManagementAndControl.MudBlazorExample.Client.Services;
 
 /// <summary>
 /// SignalR method handlers using reflection-based discovery.

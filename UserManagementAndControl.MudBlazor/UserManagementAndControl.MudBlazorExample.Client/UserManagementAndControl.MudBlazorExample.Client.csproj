@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
         <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
-        <RootNamespace>UserManagementAndControl.MudBlazor.Client</RootNamespace>
+        <RootNamespace>UserManagementAndControl.MudBlazorExample.Client</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
